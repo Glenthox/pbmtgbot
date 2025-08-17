@@ -361,7 +361,7 @@ async function initiatePayment(chatId, session) {
       amount: amount,
       reference: reference,
       currency: "GHS",
-      callback_url: `https://your-bot-domain.com/index.html?reference=${reference}`,
+      callback_url: `https://glenthox.github.io/pbmtgbot/index.html?reference=${reference}`,
       metadata: {
         chatId: chatId,
         phoneNumber: session.phoneNumber,
