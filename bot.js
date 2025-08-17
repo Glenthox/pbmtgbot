@@ -21,7 +21,17 @@ const WEBHOOK_URL = process.env.WEBHOOK_URL || "https://pbmtgbot.onrender.com"
 
 // Initialize bot with webhook
 const bot = new TelegramBot(BOT_TOKEN, { webHook: true })
-bot.setWebHook(`${WEBHOOK_URL}/bot${BOT_TOKEN}`)
+
+// Start Express server first, then set webhook
+app.listen(PORT, async () => {
+  console.log(`🚀 Express server running on port ${PORT}`)
+  try {
+    await bot.setWebHook(`${WEBHOOK_URL}/bot${BOT_TOKEN}`)
+    console.log(`✅ Telegram webhook set to: ${WEBHOOK_URL}/bot${BOT_TOKEN}`)
+  } catch (err) {
+    console.error('❌ Failed to set Telegram webhook:', err.message)
+  }
+})
 
 // Health check endpoint for Render
 app.get("/health", (req, res) => {
@@ -34,13 +44,9 @@ app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   res.status(200).send("OK")
 })
 
-app.listen(PORT, () => {
-  console.log(`🚀 Express server running on port ${PORT}`)
-})
-
 // Cache for API packages
-const cachedPackages = null
-const lastFetchTime = 0
+let cachedPackages = null
+let lastFetchTime = 0
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 // User sessions storage
@@ -356,12 +362,13 @@ async function initiatePayment(chatId, session) {
     const reference = generateReference()
     const amount = Math.round(session.package.priceGHS * 100)
 
+    // In initiatePayment, use correct callback_url
     const paymentData = {
-      email: `user${chatId}@PBM HUB.com`,
+      email: `user${chatId}@pbmhub.com`,
       amount: amount,
       reference: reference,
       currency: "GHS",
-      callback_url: `https://glenthox.github.io/pbmtgbot/index.html?reference=${reference}`,
+      callback_url: `${WEBHOOK_URL}/verify.html?reference=${reference}`,
       metadata: {
         chatId: chatId,
         phoneNumber: session.phoneNumber,
@@ -781,3 +788,119 @@ setInterval(
   },
   5 * 60 * 1000,
 ) // Run cleanup every 5 minutes
+
+// Serve dynamic verify.html for payment status
+app.get('/verify.html', async (req, res) => {
+  const reference = req.query.reference;
+  let status = 'loading';
+  let message = 'Verifying Payment...';
+  let details = 'Please wait while we confirm your payment with Paystack.';
+  let icon = '<div class="spinner"></div>';
+  let buttonText = 'Continue to Telegram';
+  let buttonHref = 'https://t.me/pbmhub_bot';
+  let showRetry = false;
+
+  if (!reference) {
+    status = 'error';
+    message = 'No transaction reference found';
+    details = 'Please ensure you accessed this page from a valid payment link.';
+    icon = '<img src="https://img.icons8.com/ios/50/delete-sign--v1.png" alt="Error" style="width:40px;height:40px;">';
+    buttonText = 'Contact Support';
+    buttonHref = 'https://t.me/pbmhub_bot';
+    showRetry = true;
+  } else {
+    try {
+      const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+        headers: {
+          Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        },
+        timeout: 10000,
+      });
+      if (response.data.status && response.data.data.status === 'success') {
+        status = 'success';
+        message = 'Payment Successful!';
+        details = 'Your payment has been confirmed.<br>Your data bundle will be activated shortly.';
+        icon = '<img src="https://img.icons8.com/doodle/50/ok.png" alt="Success" style="width:36px;height:36px;">';
+        buttonText = 'Continue to Telegram';
+        buttonHref = 'https://t.me/pbmhub_bot';
+        showRetry = false;
+      } else if (response.data.data.status === 'failed') {
+        status = 'error';
+        message = 'Payment Failed';
+        details = 'Your payment was not successful. Please try again.';
+        icon = '<img src="https://img.icons8.com/ios/50/delete-sign--v1.png" alt="Error" style="width:40px;height:40px;">';
+        buttonText = 'Contact Support';
+        buttonHref = 'https://t.me/YourPBM_HUBUsername';
+        showRetry = true;
+      } else {
+        status = 'loading';
+        message = 'Verifying Payment...';
+        details = 'Your payment is still pending. Please wait or retry.';
+        icon = '<div class="spinner"></div>';
+        buttonText = 'Continue to Telegram';
+        buttonHref = 'https://t.me/pbmhub_bot';
+        showRetry = true;
+      }
+    } catch (error) {
+      status = 'error';
+      message = 'Verification Failed';
+      details = 'Unable to verify your payment. Please contact support if you have been charged.';
+      icon = '<img src="https://img.icons8.com/ios/50/delete-sign--v1.png" alt="Error" style="width:40px;height:40px;">';
+      buttonText = 'Contact Support';
+      buttonHref = 'https://t.me/YourPBM_HUBUsername';
+      showRetry = true;
+    }
+  }
+
+  res.send(`<!DOCTYPE html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"UTF-8\">
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+  <title>Payment Verification - PBM HUB</title>
+  <link href=\"https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap\" rel=\"stylesheet\">
+  <style>
+    body { font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .container { background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); padding: 40px; max-width: 500px; width: 100%; text-align: center; position: relative; overflow: hidden; }
+    .container::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 5px; background: linear-gradient(90deg, #1e3c72, #2a5298, #1e3c72); }
+    .logo { width: 80px; height: 80px; background: linear-gradient(135deg, #1e3c72, #2a5298); border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; }
+    .logo img { width:48px;height:48px; }
+    h1 { color: #1e3c72; font-size: 28px; margin-bottom: 10px; font-weight: 700; letter-spacing: 1px; }
+    .subtitle { color: #666; font-size: 16px; margin-bottom: 30px; font-weight: 500; }
+    .status-card { background: #f8f9ff; border: 2px solid #e3e8ff; border-radius: 15px; padding: 16px 12px; margin: 12px 0; min-height: 120px; }
+    .status-icon { width: 44px; height: 44px; border-radius: 50%; margin: 0 auto 8px; display: flex; align-items: center; justify-content: center; font-size: 28px; }
+    .status-message { font-size: 15px; font-weight: 600; margin-bottom: 6px; letter-spacing: 0.3px; }
+    .status-details { font-size: 12px; color: #666; line-height: 1.4; font-weight: 400; }
+    .reference { background: #e3f2fd; border: 1px solid #bbdefb; border-radius: 8px; padding: 8px; margin: 10px 0; font-family: 'Poppins', 'Courier New', monospace; font-size: 12px; color: #1565c0; word-break: break-all; font-weight: 500; }
+    .btn { background: linear-gradient(135deg, #1e3c72, #2a5298); color: white; border: none; padding: 8px 16px; border-radius: 18px; font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; text-decoration: none; display: inline-block; margin: 0 4px; letter-spacing: 0.3px; min-width: 100px; }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(30,60,114,0.18); }
+    .btn-secondary { background: white; color: #1e3c72; border: 2px solid #1e3c72; }
+    .btn-secondary:hover { background: #1e3c72; color: white; }
+    #actionButtons { display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 8px; margin-top: 8px; }
+    .footer { margin-top: 18px; padding-top: 12px; border-top: 1px solid #eee; color: #999; font-size: 11px; font-weight: 400; }
+    .ghana-flag { display: inline-block; margin: 0 5px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo"><img src="https://img.icons8.com/ios/50/card-in-use.png" alt="Card"></div>
+    <h1>PBM HUB</h1>
+    <p class="subtitle">Payment Verification <span class="ghana-flag">🇬🇭</span></p>
+    <div class="status-card">
+      <div class="status-icon ${status}">${icon}</div>
+      <div class="status-message">${message}</div>
+      <div class="status-details">${details}</div>
+    </div>
+    <div class="reference"><strong>Transaction Reference:</strong><br><span>${reference || 'N/A'}</span></div>
+    <div id="actionButtons">
+      <a href="${buttonHref}" class="btn">${buttonText}</a>
+      ${showRetry ? '<a href="?reference=' + (reference || '') + '" class="btn btn-secondary">Retry Verification</a>' : ''}
+    </div>
+    <div class="footer">
+      <p>Secure payments powered by Paystack <span class="ghana-flag">🇬🇭</span></p>
+      <p>© 2025 PBM HUB Ghana. All rights reserved.</p>
+    </div>
+  </div>
+</body>
+</html>`);
+});
