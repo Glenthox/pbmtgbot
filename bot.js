@@ -153,32 +153,33 @@ function getDataPackages() {
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id
   const welcomeMessage = `
-🎊 *Welcome to PBM HUB Ghana!* 📱✨
+*WELCOME TO PBM HUB GHANA*
 
-Your premium solution for purchasing data bundles quickly and securely in Ghana.
+Your trusted platform for PURCHASING DATA BUNDLES quickly, securely, and at the BEST RATES in Ghana.
 
-🌟 *Premium Features:*
-• 🇬🇭 MTN, Telecel & AirtelTigo packages
-• 💎 Secure Paystack payments
-• ⚡ Instant data delivery
-• 🛡️ 24/7 automated service
-• 🎯 Best rates in Ghana
+*FEATURES:*
+- MTN, TELECEL, and AIRTELTIGO bundles
+- SECURE PAYSTACK PAYMENTS
+- INSTANT DELIVERY
+- 24/7 AUTOMATED SERVICE
 
-Choose your network to get started! 👇
-  `
+Select your NETWORK below to begin.`
 
   const keyboard = {
     inline_keyboard: [
       [
-        { text: "📶 MTN Ghana", callback_data: "network_mtn" },
-        { text: "📡 Telecel Ghana", callback_data: "network_telecel" },
+        { text: "MTN", callback_data: "network_mtn" },
+        { text: "Telecel", callback_data: "network_telecel" }
       ],
-      [{ text: "🌐 AirtelTigo Ghana", callback_data: "network_airteltigo" }],
       [
-        { text: "❓ Help", callback_data: "help" },
-        { text: "🎧 Support", callback_data: "support" },
+        { text: "AirtelTigo", callback_data: "network_airteltigo" },
+        { text: "Help", callback_data: "help" }
       ],
-    ],
+      [
+        { text: "Support", callback_data: "support" },
+        { text: "Menu", callback_data: "back_to_networks" }
+      ]
+    ]
   }
 
   bot.sendMessage(chatId, welcomeMessage, {
@@ -250,24 +251,29 @@ async function handleNetworkSelection(chatId, messageId, network) {
       return
     }
 
-    const message = `
-📶 *${packages.name} Data Packages* 🇬🇭
+  const message = `
+*${packages.name.toUpperCase()} BUNDLES*
 
-Choose your preferred data bundle:
-    `
+Please select your PREFERRED DATA PACKAGE below:`
 
     const packageButtons = []
     for (let i = 0; i < packages.packages.length; i += 2) {
       packageButtons.push(
         packages.packages.slice(i, i + 2).map((pkg) => ({
-          text: `${pkg.volumeGB}GB • GH₵${pkg.priceGHS.toFixed(2)}`,
+          text: `${pkg.volumeGB}GB | GH₵${pkg.priceGHS.toFixed(2)}`,
           callback_data: `package_${pkg.id}`,
-        })),
+        }))
       )
     }
 
+    // Add navigation buttons, two per row
+    packageButtons.push([
+      { text: "Menu", callback_data: "back_to_networks" },
+      { text: "Support", callback_data: "support" }
+    ])
+
     const keyboard = {
-      inline_keyboard: [...packageButtons, [{ text: "⬅️ Back to Networks", callback_data: "back_to_networks" }]],
+      inline_keyboard: packageButtons
     }
 
     await bot.editMessageText(message, {
@@ -311,15 +317,13 @@ async function handlePackageSelection(chatId, messageId, packageId) {
       step: "phone_input",
     })
 
-    const message = `
-💎 *Package Selected*
+  const message = `
+*PACKAGE SELECTED*
 
-*Network:* ${networkName} 🇬🇭
-*Package:* ${selectedPackage.volumeGB}GB - GH₵${selectedPackage.priceGHS.toFixed(2)}
+NETWORK: ${networkName.toUpperCase()}
+PACKAGE: ${selectedPackage.volumeGB}GB FOR GH₵${selectedPackage.priceGHS.toFixed(2)}
 
-📱 Please enter your Ghana phone number:
-(Format: 0241234567 or +233241234567)
-    `
+Please enter your GHANAIAN PHONE NUMBER (e.g. 0241234567 or +233241234567):`
 
     await bot.editMessageText(message, {
       chat_id: chatId,
@@ -392,25 +396,30 @@ async function initiatePayment(chatId, session) {
       session.paymentInitiated = Date.now()
       userSessions.set(chatId, session)
 
-      const message = `💳 Payment Details 🇬🇭
+  const message = `*PAYMENT DETAILS*
 
-Network: ${session.network}
-Package: ${session.package.volumeGB}GB - GH₵${session.package.priceGHS.toFixed(2)}
-Phone: ${session.phoneNumber}
-Amount: GH₵${session.package.priceGHS.toFixed(2)}
-Reference: ${reference}
+NETWORK: ${session.network.toUpperCase()}
+PACKAGE: ${session.package.volumeGB}GB FOR GH₵${session.package.priceGHS.toFixed(2)}
+PHONE: ${session.phoneNumber}
+REFERENCE: ${reference}
 
-Click the button below to complete your payment:`
+Please click "PAY" to complete your payment. After payment, click "PAID" to continue.`
 
       const keyboard = {
         inline_keyboard: [
-          [{ text: "💎 Pay Now", url: paymentUrl }],
-          [{ text: "✅ I have paid", callback_data: `confirm_${reference}` }],
-          [{ text: "❌ Cancel", callback_data: "back_to_networks" }],
+          [
+            { text: "Pay", url: paymentUrl },
+            { text: "Paid", callback_data: `confirm_${reference}` }
+          ],
+          [
+            { text: "Cancel", callback_data: "back_to_networks" },
+            { text: "Support", callback_data: "support" }
+          ]
         ],
       }
 
       await bot.sendMessage(chatId, message, {
+        parse_mode: "Markdown",
         reply_markup: keyboard,
       })
     } else {
@@ -452,7 +461,7 @@ async function handlePaymentConfirmation(chatId, messageId, reference) {
 
     const actualReference = session.reference
 
-    await bot.editMessageText("🔍 Verifying your payment... Please wait.", {
+  await bot.editMessageText("VERIFYING YOUR PAYMENT. PLEASE WAIT...", {
       chat_id: chatId,
       message_id: messageId,
     })
@@ -469,11 +478,11 @@ async function handlePaymentConfirmation(chatId, messageId, reference) {
       const expectedAmount = Math.round(session.package.priceGHS * 100)
 
       if (paymentData.amount !== expectedAmount) {
-        await bot.editMessageText("❌ Payment amount mismatch. Please contact support.", {
+  await bot.editMessageText("PAYMENT AMOUNT MISMATCH. PLEASE CONTACT SUPPORT.", {
           chat_id: chatId,
           message_id: messageId,
           reply_markup: {
-            inline_keyboard: [[{ text: "🎧 Contact Support", callback_data: "support" }]],
+            inline_keyboard: [[{ text: "Support", callback_data: "support" }, { text: "Menu", callback_data: "back_to_networks" }]],
           },
         })
         return
@@ -495,9 +504,14 @@ async function handlePaymentConfirmation(chatId, messageId, reference) {
 
       const keyboard = {
         inline_keyboard: [
-          [{ text: "🔄 Check Again", callback_data: `confirm_${actualReference}` }],
-          [{ text: "💳 New Payment", callback_data: "back_to_networks" }],
-          [{ text: "🎧 Support", callback_data: "support" }],
+          [
+            { text: "Check", callback_data: `confirm_${actualReference}` },
+            { text: "Menu", callback_data: "back_to_networks" }
+          ],
+          [
+            { text: "Support", callback_data: "support" },
+            { text: "New", callback_data: "back_to_networks" }
+          ]
         ],
       }
 
@@ -545,13 +559,13 @@ async function handlePaymentConfirmation(chatId, messageId, reference) {
 }
 
 async function processDataBundle(chatId, session) {
-  const processingMessage = `⏳ Processing your data bundle... 🇬🇭
+  const processingMessage = `PROCESSING YOUR DATA BUNDLE...
 
-Network: ${session.network}
-Package: ${session.package.volumeGB}GB - GH₵${session.package.priceGHS.toFixed(2)}
-Phone: ${session.phoneNumber}
+NETWORK: ${session.network.toUpperCase()}
+PACKAGE: ${session.package.volumeGB}GB FOR GH₵${session.package.priceGHS.toFixed(2)}
+PHONE: ${session.phoneNumber}
 
-Please wait while we activate your data bundle.`
+Please wait while we ACTIVATE your bundle.`
 
   let processingMsg
   try {
@@ -566,19 +580,22 @@ Please wait while we activate your data bundle.`
 
     // Handle Foster Console API response format
     if (result.success === true) {
-      const successMessage = `✅ Data Bundle Activated Successfully! 🎉
+  const successMessage = `YOUR DATA BUNDLE HAS BEEN ACTIVATED SUCCESSFULLY.
 
-Network: ${session.network} 🇬🇭
-Package: ${session.package.volumeGB}GB - GH₵${session.package.priceGHS.toFixed(2)}
-Phone: ${session.phoneNumber}
-Transaction ID: ${result.transaction_code}
+NETWORK: ${session.network.toUpperCase()}
+PACKAGE: ${session.package.volumeGB}GB FOR GH₵${session.package.priceGHS.toFixed(2)}
+PHONE: ${session.phoneNumber}
+TRANSACTION ID: ${result.transaction_code}
 
-Your data bundle has been successfully activated! 🎊
-
-Thank you for using PBM HUB Ghana! 💎`
+Thank you for using PBM HUB GHANA.`
 
       const keyboard = {
-        inline_keyboard: [[{ text: "🔄 Buy Another", callback_data: "back_to_networks" }]],
+        inline_keyboard: [
+          [
+            { text: "Menu", callback_data: "back_to_networks" },
+            { text: "Support", callback_data: "support" }
+          ]
+        ],
       }
 
       await bot.editMessageText(successMessage, {
@@ -592,7 +609,7 @@ Thank you for using PBM HUB Ghana! 💎`
   } catch (error) {
     console.error("Data bundle purchase failed:", error)
 
-    let errorMessage = "❌ Failed to activate data bundle. "
+  let errorMessage = "FAILED TO ACTIVATE DATA BUNDLE. "
 
     // Handle specific Foster Console API error codes
     if (error.response?.status === 400) {
@@ -612,8 +629,10 @@ Thank you for using PBM HUB Ghana! 💎`
 
     const keyboard = {
       inline_keyboard: [
-        [{ text: "🔄 Try Again", callback_data: "back_to_networks" }],
-        [{ text: "🎧 Contact Support", callback_data: "support" }],
+        [
+          { text: "Menu", callback_data: "back_to_networks" },
+          { text: "Support", callback_data: "support" }
+        ]
       ],
     }
 
@@ -632,19 +651,21 @@ Thank you for using PBM HUB Ghana! 💎`
 
 async function showNetworkSelection(chatId, messageId) {
   const message = `
-📱 *Choose Your Network* 🇬🇭
+*CHOOSE YOUR NETWORK*
 
-Select your preferred network provider:
-  `
+Select your PREFERRED NETWORK PROVIDER below:`
 
   const keyboard = {
     inline_keyboard: [
       [
-        { text: "📶 MTN Ghana", callback_data: "network_mtn" },
-        { text: "📡 Telecel Ghana", callback_data: "network_telecel" },
+        { text: "MTN", callback_data: "network_mtn" },
+        { text: "Telecel", callback_data: "network_telecel" }
       ],
-      [{ text: "🌐 AirtelTigo Ghana", callback_data: "network_airteltigo" }],
-    ],
+      [
+        { text: "AirtelTigo", callback_data: "network_airteltigo" },
+        { text: "Menu", callback_data: "back_to_networks" }
+      ]
+    ]
   }
 
   bot.editMessageText(message, {
@@ -657,34 +678,26 @@ Select your preferred network provider:
 
 async function showHelp(chatId, messageId) {
   const helpMessage = `
-❓ *Help & Instructions* 🇬🇭
+*HELP & INSTRUCTIONS*
 
-*How to use PBM HUB Ghana:*
+HOW TO USE PBM HUB GHANA:
+1. CHOOSE YOUR NETWORK (MTN, TELECEL, AIRTELTIGO)
+2. SELECT YOUR PREFERRED DATA PACKAGE
+3. ENTER YOUR GHANAIAN PHONE NUMBER
+4. COMPLETE PAYMENT VIA PAYSTACK
+5. CLICK "PAID" AFTER PAYMENT FOR INSTANT ACTIVATION
 
-1️⃣ Choose your network (MTN, Telecel, or AirtelTigo)
-2️⃣ Select your preferred data package (1-5GB)
-3️⃣ Enter your Ghana phone number
-4️⃣ Complete payment via Paystack (GHS)
-5️⃣ Receive instant data activation
-
-*Supported Networks:*
-• 📶 MTN Ghana
-• 📡 Telecel Ghana
-• 🌐 AirtelTigo Ghana
-
-*Payment Methods:*
-• 💳 Debit/Credit Cards
-• 🏦 Mobile Money
-• 📱 Bank Transfer
-
-*Data Packages:*
-• 💎 1GB to 5GB options available
-• 🎯 Best rates in Ghana
-• ⚡ Instant activation
-  `
+SUPPORTED NETWORKS: MTN, TELECEL, AIRTELTIGO
+PAYMENT METHODS: CARD, MOBILE MONEY, BANK TRANSFER
+DATA PACKAGES: 1GB TO 5GB, BEST RATES, INSTANT ACTIVATION.`
 
   const keyboard = {
-    inline_keyboard: [[{ text: "⬅️ Back to Main Menu", callback_data: "back_to_networks" }]],
+    inline_keyboard: [
+      [
+        { text: "Menu", callback_data: "back_to_networks" },
+        { text: "Support", callback_data: "support" }
+      ]
+    ]
   }
 
   bot.editMessageText(helpMessage, {
@@ -697,30 +710,33 @@ async function showHelp(chatId, messageId) {
 
 async function showSupport(chatId, messageId) {
   const supportMessage = `
-🎧 *Customer Support* 🇬🇭
+*CUSTOMER SUPPORT*
 
-Need help? We're here for you!
+NEED HELP? WE'RE HERE FOR YOU.
 
-*Contact Options:*
-• 📧 Email: support@PBM HUB.gh
-• 📞 Phone: +233 50 123 4567
-• 💬 Telegram: @PBM HUBGhanaSupport
+CONTACT:
+- EMAIL: update@pbmdatahub.pro
+- TELEGRAM: @glenthox
 
-*Business Hours:*
-Monday - Friday: 8:00 AM - 8:00 PM (GMT)
-Saturday - Sunday: 10:00 AM - 6:00 PM (GMT)
+BUSINESS HOURS:
+MON-FRI: 7:00 AM - 8:00 PM
+SAT: 7:00 AM - 6:00 PM
 
-*Common Issues:*
-• 💳 Payment not reflecting
-• 📱 Data not received
-• ❌ Wrong number entered
-• 💰 Refund requests
+COMMON ISSUES:
+- PAYMENT NOT REFLECTING
+- DATA NOT RECEIVED
+- WRONG NUMBER ENTERED
+- REFUND REQUESTS
 
-We typically respond within 30 minutes! 💎
-  `
+WE REPLY WITHIN 10 MINUTES ON TELEGRAM.`
 
   const keyboard = {
-    inline_keyboard: [[{ text: "⬅️ Back to Main Menu", callback_data: "back_to_networks" }]],
+    inline_keyboard: [
+      [
+        { text: "Menu", callback_data: "back_to_networks" },
+        { text: "Help", callback_data: "help" }
+      ]
+    ]
   }
 
   bot.editMessageText(supportMessage, {
@@ -823,7 +839,7 @@ app.get('/verify.html', async (req, res) => {
   <div class="container">
     <div class="logo"><img src="https://img.icons8.com/ios/50/follow.png" alt="Go to Bot"></div>
     <h1>PBM HUB</h1>
-    <p class="subtitle">Payment Complete <span class="ghana-flag">🇬🇭</span></p>
+    <p class="subtitle">Follow Instruction To Proceed!</p>
     <div class="status-card">
       <div class="status-icon"> <img src="https://img.icons8.com/ios/50/follow.png" alt="Go to Bot" style="width:32px;height:32px;"> </div>
       <div class="status-message">Thank you for your payment!</div>
