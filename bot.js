@@ -152,35 +152,34 @@ function getDataPackages() {
 // Bot command handlers
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id
-  const welcomeMessage = `
-🎊 *WELCOME TO PBM HUB TG BOT* 📱✨
+  const welcomeMessage = `*WELCOME TO PBM HUB GHANA*
 
-Your premium solution for purchasing data bundles quickly and securely in Ghana.
+THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA.
 
-🌟 *Premium Features:*
-• 🇬🇭 MTN, Telecel & AirtelTigo packages
-• 💎 Secure Paystack payments
-• ⚡ Instant data delivery
-• 🛡️ 24/7 automated service
-• 🎯 Best rates in Ghana
+FEATURES:
+MTN, TELECEL, AND AIRTELTIGO PACKAGES
+SECURE PAYMENTS
+FASTER DELIVERY
+24/7 SERVICE
+BEST RATES
 
-Choose your network to get started! 👇
-  `
-
+SELECT YOUR NETWORK TO BEGIN.`
   const keyboard = {
     inline_keyboard: [
       [
-        { text: "📶 MTN Ghana", callback_data: "network_mtn" },
-        { text: "📡 Telecel Ghana", callback_data: "network_telecel" },
+        { text: "MTN", callback_data: "network_mtn" },
+        { text: "TELECEL", callback_data: "network_telecel" }
       ],
-      [{ text: "🌐 AirtelTigo Ghana", callback_data: "network_airteltigo" }],
       [
-        { text: "❓ Help", callback_data: "help" },
-        { text: "🎧 Support", callback_data: "support" },
+        { text: "AIRTELTIGO", callback_data: "network_airteltigo" },
+        { text: "HELP", callback_data: "help" }
       ],
-    ],
+      [
+        { text: "SUPPORT", callback_data: "support" },
+        { text: "EXIT", callback_data: "exit" }
+      ]
+    ]
   }
-
   bot.sendMessage(chatId, welcomeMessage, {
     parse_mode: "Markdown",
     reply_markup: keyboard,
@@ -523,13 +522,13 @@ async function handlePaymentConfirmation(chatId, messageId, reference) {
 }
 
 async function processDataBundle(chatId, session) {
-  const processingMessage = `⏳ Processing your data bundle... 🇬🇭
+  const processingMessage = `⏳ PROCESSING YOUR DATA BUNDLE...
 
-Network: ${session.network}
-Package: ${session.package.volumeGB}GB - GH₵${session.package.priceGHS.toFixed(2)}
-Phone: ${session.phoneNumber}
+NETWORK: ${session.network}
+PACKAGE: ${session.package.volumeGB}GB - GH₵${session.package.priceGHS.toFixed(2)}
+PHONE: ${session.phoneNumber}
 
-Please wait while we activate your data bundle.`
+PLEASE RELAX WHILE WE PROCESS YOUR REQUEST...`
 
   let processingMsg
   try {
@@ -544,19 +543,17 @@ Please wait while we activate your data bundle.`
 
     // Handle Foster Console API response format
     if (result.success === true) {
-      const successMessage = `✅ Data Bundle Activated Successfully! 🎉
+      const successMessage = `BUNDLE PROCESSED SUCCESSFULLY
 
-Network: ${session.network} 🇬🇭
-Package: ${session.package.volumeGB}GB - GH₵${session.package.priceGHS.toFixed(2)}
-Phone: ${session.phoneNumber}
-Transaction ID: ${result.transaction_code}
+NETWORK: ${session.network}
+PACKAGE: ${session.package.volumeGB}GB - GH₵${session.package.priceGHS.toFixed(2)}
+PHONE: ${session.phoneNumber}
+TRANSACTION ID: ${result.transaction_code}
 
-Your data bundle has been successfully activated! 🎊
-
-Thank you for using PBM HUB Ghana! 💎`
+THANK YOU FOR USING PBM HUB GHANA!`
 
       const keyboard = {
-        inline_keyboard: [[{ text: "🔄 Buy Another", callback_data: "back_to_networks" }]],
+        inline_keyboard: [[{ text: "🔄 BUY AGAIN", callback_data: "back_to_networks" }]],
       }
 
       await bot.editMessageText(successMessage, {
@@ -669,21 +666,21 @@ async function showSupport(chatId, messageId) {
   const supportMessage = `*CUSTOMER SUPPORT*
 
 FOR HELP, CONTACT US:
-EMAIL: SUPPORT@PBMHUB.GH
-PHONE: +233 50 123 4567
-TELEGRAM: @PBMHUBGHANASUPPORT
+EMAIL: update@pbmdatahub.pro
+PHONE: +23354 056 2479
+TELEGRAM: @glenthox
 
 BUSINESS HOURS:
 MON-FRI: 8AM-8PM
 SAT-SUN: 10AM-6PM
 
 COMMON ISSUES:
-- PAYMENT NOT REFLECTING
-- DATA NOT RECEIVED
-- WRONG NUMBER ENTERED
-- REFUND REQUESTS
+PAYMENT NOT REFLECTING
+DATA NOT RECEIVED
+WRONG NUMBER ENTERED
+REFUND REQUESTS
 
-WE RESPOND WITHIN 30 MINUTES.`
+WE RESPOND WITHIN 10 MINUTES.`
   const keyboard = {
     inline_keyboard: [
       [
