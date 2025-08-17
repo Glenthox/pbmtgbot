@@ -17,7 +17,7 @@ const app = express()
 app.use(bodyParser.json())
 
 const PORT = process.env.PORT || 3000
-const WEBHOOK_URL = process.env.WEBHOOK_URL || "https://your-app-name.onrender.com"
+const WEBHOOK_URL = process.env.WEBHOOK_URL || "https://pbmtgbot.onrender.com"
 
 // Initialize bot with webhook
 const bot = new TelegramBot(BOT_TOKEN, { webHook: true })
@@ -361,7 +361,7 @@ async function initiatePayment(chatId, session) {
       amount: amount,
       reference: reference,
       currency: "GHS",
-      callback_url: `https://your-bot-domain.com/verify.html?reference=${reference}`,
+      callback_url: `https://your-bot-domain.com/index.html?reference=${reference}`,
       metadata: {
         chatId: chatId,
         phoneNumber: session.phoneNumber,
