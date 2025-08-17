@@ -113,34 +113,60 @@ function generateReference() {
 
 // Hardcoded data packages
 const DATA_PACKAGES = {
-  airteltigo: {
-    name: "AirtelTigo Ghana",
-    packages: [
-      { id: 11, volumeGB: "1", priceGHS: 7.5, volume: "1000", network_id: 1, network: "AirtelTigo" },
-      { id: 12, volumeGB: "2", priceGHS: 14.5, volume: "2000", network_id: 1, network: "AirtelTigo" },
-      { id: 13, volumeGB: "3", priceGHS: 21.5, volume: "3000", network_id: 1, network: "AirtelTigo" },
-      { id: 14, volumeGB: "4", priceGHS: 28.5, volume: "4000", network_id: 1, network: "AirtelTigo" },
-      { id: 15, volumeGB: "5", priceGHS: 35.5, volume: "5000", network_id: 1, network: "AirtelTigo" },
-    ],
-  },
   mtn: {
     name: "MTN Ghana",
     packages: [
-      { id: 1, volumeGB: "1", priceGHS: 1, volume: "1000", network_id: 3, network: "MTN" },
-      { id: 2, volumeGB: "2", priceGHS: 16.0, volume: "2000", network_id: 3, network: "MTN" },
-      { id: 3, volumeGB: "3", priceGHS: 23.5, volume: "3000", network_id: 3, network: "MTN" },
-      { id: 4, volumeGB: "4", priceGHS: 31.0, volume: "4000", network_id: 3, network: "MTN" },
-      { id: 5, volumeGB: "5", priceGHS: 38.5, volume: "5000", network_id: 3, network: "MTN" },
+      { id: 1, volumeGB: "1", priceGHS: 5.5, volume: "1000", network_id: 3, network: "MTN" },
+      { id: 2, volumeGB: "2", priceGHS: 10.5, volume: "2000", network_id: 3, network: "MTN" },
+      { id: 3, volumeGB: "3", priceGHS: 15.5, volume: "3000", network_id: 3, network: "MTN" },
+      { id: 4, volumeGB: "4", priceGHS: 20.5, volume: "4000", network_id: 3, network: "MTN" },
+      { id: 5, volumeGB: "5", priceGHS: 25.5, volume: "5000", network_id: 3, network: "MTN" },
+      { id: 6, volumeGB: "6", priceGHS: 29.5, volume: "6000", network_id: 3, network: "MTN" },
+      { id: 7, volumeGB: "8", priceGHS: 38.5, volume: "8000", network_id: 3, network: "MTN" },
+      { id: 8, volumeGB: "10", priceGHS: 47.5, volume: "10000", network_id: 3, network: "MTN" },
+      { id: 9, volumeGB: "15", priceGHS: 65.0, volume: "15000", network_id: 3, network: "MTN" },
+      { id: 10, volumeGB: "20", priceGHS: 85.0, volume: "20000", network_id: 3, network: "MTN" },
+      { id: 11, volumeGB: "25", priceGHS: 105.0, volume: "25000", network_id: 3, network: "MTN" },
+      { id: 12, volumeGB: "30", priceGHS: 128.0, volume: "30000", network_id: 3, network: "MTN" },
+      { id: 13, volumeGB: "40", priceGHS: 170.0, volume: "40000", network_id: 3, network: "MTN" },
+      { id: 14, volumeGB: "50", priceGHS: 210.0, volume: "50000", network_id: 3, network: "MTN" },
+      { id: 15, volumeGB: "100", priceGHS: 420.0, volume: "100000", network_id: 3, network: "MTN" },
+    ],
+  },
+  airteltigo: {
+    name: "AirtelTigo Ghana",
+    packages: [
+      { id: 16, volumeGB: "1", priceGHS: 4.7, volume: "1000", network_id: 1, network: "AirtelTigo" },
+      { id: 17, volumeGB: "2", priceGHS: 9.4, volume: "2000", network_id: 1, network: "AirtelTigo" },
+      { id: 18, volumeGB: "3", priceGHS: 14.1, volume: "3000", network_id: 1, network: "AirtelTigo" },
+      { id: 19, volumeGB: "4", priceGHS: 18.8, volume: "4000", network_id: 1, network: "AirtelTigo" },
+      { id: 20, volumeGB: "5", priceGHS: 23.5, volume: "5000", network_id: 1, network: "AirtelTigo" },
+      { id: 21, volumeGB: "6", priceGHS: 28.2, volume: "6000", network_id: 1, network: "AirtelTigo" },
+      { id: 22, volumeGB: "7", priceGHS: 32.9, volume: "7000", network_id: 1, network: "AirtelTigo" },
+      { id: 23, volumeGB: "8", priceGHS: 37.6, volume: "8000", network_id: 1, network: "AirtelTigo" },
+      { id: 24, volumeGB: "9", priceGHS: 42.3, volume: "9000", network_id: 1, network: "AirtelTigo" },
+      { id: 25, volumeGB: "10", priceGHS: 47.0, volume: "10000", network_id: 1, network: "AirtelTigo" },
+      { id: 26, volumeGB: "12", priceGHS: 56.4, volume: "12000", network_id: 1, network: "AirtelTigo" },
+      { id: 27, volumeGB: "15", priceGHS: 70.5, volume: "15000", network_id: 1, network: "AirtelTigo" },
+      { id: 28, volumeGB: "20", priceGHS: 94.0, volume: "20000", network_id: 1, network: "AirtelTigo" },
+      { id: 29, volumeGB: "25", priceGHS: 117.5, volume: "25000", network_id: 1, network: "AirtelTigo" },
+      { id: 30, volumeGB: "30", priceGHS: 141.0, volume: "30000", network_id: 1, network: "AirtelTigo" },
+      { id: 31, volumeGB: "40", priceGHS: 188.0, volume: "40000", network_id: 1, network: "AirtelTigo" },
+      { id: 32, volumeGB: "50", priceGHS: 235.0, volume: "50000", network_id: 1, network: "AirtelTigo" },
+      { id: 33, volumeGB: "100", priceGHS: 470.0, volume: "100000", network_id: 1, network: "AirtelTigo" },
     ],
   },
   telecel: {
     name: "Telecel Ghana",
     packages: [
-      { id: 6, volumeGB: "1", priceGHS: 9.0, volume: "1000", network_id: 2, network: "Telecel" },
-      { id: 7, volumeGB: "2", priceGHS: 17.0, volume: "2000", network_id: 2, network: "Telecel" },
-      { id: 8, volumeGB: "3", priceGHS: 25.0, volume: "3000", network_id: 2, network: "Telecel" },
-      { id: 9, volumeGB: "4", priceGHS: 33.0, volume: "4000", network_id: 2, network: "Telecel" },
-      { id: 10, volumeGB: "5", priceGHS: 41.0, volume: "5000", network_id: 2, network: "Telecel" },
+      { id: 34, volumeGB: "10", priceGHS: 50.0, volume: "10000", network_id: 2, network: "Telecel" },
+      { id: 35, volumeGB: "15", priceGHS: 75.0, volume: "15000", network_id: 2, network: "Telecel" },
+      { id: 36, volumeGB: "20", priceGHS: 100.0, volume: "20000", network_id: 2, network: "Telecel" },
+      { id: 37, volumeGB: "25", priceGHS: 125.0, volume: "25000", network_id: 2, network: "Telecel" },
+      { id: 38, volumeGB: "30", priceGHS: 150.0, volume: "30000", network_id: 2, network: "Telecel" },
+      { id: 39, volumeGB: "40", priceGHS: 200.0, volume: "40000", network_id: 2, network: "Telecel" },
+      { id: 40, volumeGB: "50", priceGHS: 250.0, volume: "50000", network_id: 2, network: "Telecel" },
+      { id: 41, volumeGB: "100", priceGHS: 500.0, volume: "100000", network_id: 2, network: "Telecel" },
     ],
   },
 }
@@ -239,12 +265,12 @@ async function handleNetworkSelection(chatId, messageId, network) {
     }
     const message = `*${packages.name.toUpperCase()} DATA PACKAGES*
 
-SELECT YOUR PREFERRED BUNDLE:`
+SELECT YOUR PREFERRED BUNDLE PACKAGE:`
     const packageButtons = []
-    for (let i = 0; i < packages.packages.length; i += 2) {
+    for (let i = 0; i < packages.packages.length; i += 3) {
       packageButtons.push(
-        packages.packages.slice(i, i + 2).map((pkg) => ({
-          text: `${pkg.volumeGB}GB | GHS${pkg.priceGHS.toFixed(2)}`.toUpperCase(),
+        packages.packages.slice(i, i + 3).map((pkg) => ({
+          text: `${pkg.volumeGB}GB | ₵${pkg.priceGHS.toFixed(2)}`.toUpperCase(),
           callback_data: `package_${pkg.id}`,
         }))
       )
@@ -295,10 +321,10 @@ async function handlePackageSelection(chatId, messageId, packageId) {
       network: networkName,
       step: "phone_input",
     })
-    const message = `*PACKAGE SELECTED*
+  const message = `*PACKAGE SELECTED*
 
 NETWORK: ${networkName.toUpperCase()}
-PACKAGE: ${selectedPackage.volumeGB}GB | GHS${selectedPackage.priceGHS.toFixed(2)}
+PACKAGE: ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}
 
 ENTER YOUR GHANA PHONE NUMBER (E.G. 0241234567 OR +233241234567):`
     await bot.editMessageText(message, {
@@ -366,12 +392,12 @@ async function initiatePayment(chatId, session) {
       session.reference = reference
       session.paymentInitiated = Date.now()
       userSessions.set(chatId, session)
-      const message = `*PAYMENT DETAILS*
+  const message = `*PAYMENT DETAILS*
 
 NETWORK: ${session.network.toUpperCase()}
-PACKAGE: ${session.package.volumeGB}GB | GHS${session.package.priceGHS.toFixed(2)}
+PACKAGE: ${session.package.volumeGB}GB | ₵${session.package.priceGHS.toFixed(2)}
 PHONE: ${session.phoneNumber}
-AMOUNT: GHS${session.package.priceGHS.toFixed(2)}
+AMOUNT: ₵${session.package.priceGHS.toFixed(2)}
 REFERENCE: ${reference}
 
 SELECT AN OPTION BELOW TO CONTINUE:`
@@ -525,7 +551,7 @@ async function processDataBundle(chatId, session) {
   const processingMessage = `⏳ PROCESSING YOUR DATA BUNDLE...
 
 NETWORK: ${session.network}
-PACKAGE: ${session.package.volumeGB}GB - GH₵${session.package.priceGHS.toFixed(2)}
+PACKAGE: ${session.package.volumeGB}GB - ₵${session.package.priceGHS.toFixed(2)}
 PHONE: ${session.phoneNumber}
 
 PLEASE RELAX WHILE WE PROCESS YOUR REQUEST...`
@@ -543,10 +569,10 @@ PLEASE RELAX WHILE WE PROCESS YOUR REQUEST...`
 
     // Handle Foster Console API response format
     if (result.success === true) {
-      const successMessage = `BUNDLE PROCESSED SUCCESSFULLY
+  const successMessage = `BUNDLE PROCESSED SUCCESSFULLY
 
 NETWORK: ${session.network}
-PACKAGE: ${session.package.volumeGB}GB - GH₵${session.package.priceGHS.toFixed(2)}
+PACKAGE: ${session.package.volumeGB}GB - ₵${session.package.priceGHS.toFixed(2)}
 PHONE: ${session.phoneNumber}
 TRANSACTION ID: ${result.transaction_code}
 
