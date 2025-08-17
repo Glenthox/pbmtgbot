@@ -792,111 +792,12 @@ setInterval(
 // Serve dynamic verify.html for payment status
 app.get('/verify.html', async (req, res) => {
   const reference = req.query.reference || req.query.trxref;
-  let status = 'loading';
-  let message = 'Verifying Payment...';
-  let details = 'Please wait while we confirm your payment with Paystack.';
-  let icon = '<div class="spinner"></div>';
-  let buttonText = 'Continue to Telegram';
-  let buttonHref = 'https://t.me/pbmhub_bot';
-  let showRetry = false;
-  let debugInfo = '';
-  let autoRefresh = false;
-
-  if (!reference) {
-    status = 'error';
-    message = 'No transaction reference found';
-    details = 'Please ensure you accessed this page from a valid payment link.';
-    icon = '<img src="https://img.icons8.com/ios/50/delete-sign--v1.png" alt="Error" style="width:40px;height:40px;">';
-    buttonText = 'Contact Support';
-    buttonHref = 'https://t.me/pbmhub_bot';
-    showRetry = true;
-  } else {
-    try {
-      const verifyUrl = `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`;
-      const response = await axios.get(verifyUrl, {
-        headers: {
-          Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-        },
-        timeout: 10000,
-      });
-      debugInfo = `<pre style='text-align:left;overflow-x:auto;font-size:10px;background:#f8f9ff;border-radius:8px;padding:8px;'>${JSON.stringify(response.data, null, 2)}</pre>`;
-      if (response.data.status && response.data.data.status === 'success') {
-        status = 'success';
-        message = '✅ Payment Successful!';
-        details = 'Your payment has been confirmed.<br>Your data bundle will be activated shortly.<br>Thank you for using PBM HUB Ghana.';
-        icon = '<img src="https://img.icons8.com/doodle/50/ok.png" alt="Success" style="width:36px;height:36px;">';
-        buttonText = 'Continue to Telegram';
-        buttonHref = 'https://t.me/pbmhub_bot';
-        showRetry = false;
-      } else if (response.data.data.status === 'failed') {
-        status = 'error';
-        message = '❌ Payment Failed';
-        details = 'Your payment was not successful. Please try again or contact support.';
-        icon = '<img src="https://img.icons8.com/ios/50/delete-sign--v1.png" alt="Error" style="width:40px;height:40px;">';
-        buttonText = 'Contact Support';
-        buttonHref = 'https://t.me/pbmhub_bot';
-        showRetry = true;
-      } else if (response.data.data.status === 'pending') {
-        status = 'loading';
-        message = '⏳ Payment Pending';
-        details = 'Your payment is still pending. This page will refresh automatically.<br>If you have completed payment, please wait a moment.';
-        icon = '<div class="spinner"></div>';
-        buttonText = 'Contact Support';
-        buttonHref = 'https://t.me/pbmhub_bot';
-        showRetry = true;
-        autoRefresh = true;
-      } else {
-        status = 'error';
-        message = 'Unknown Payment Status';
-        details = 'Unable to determine payment status. Please try again or contact support.';
-        icon = '<img src="https://img.icons8.com/ios/50/delete-sign--v1.png" alt="Error" style="width:40px;height:40px;">';
-        buttonText = 'Contact Support';
-        buttonHref = 'https://t.me/pbmhub_bot';
-        showRetry = true;
-      }
-    } catch (error) {
-      // Handle Paystack "Transaction reference not found" error
-      if (error.response && error.response.data && error.response.data.message && error.response.data.message.toLowerCase().includes('transaction reference not found')) {
-        status = 'error';
-        message = 'Transaction Reference Not Found';
-        details = 'Paystack could not find this transaction.<br>Possible reasons:<ul style="text-align:left;font-size:12px;margin:8px 0 0 16px;padding:0;">'
-          + '<li>Payment not completed yet (wait a few seconds and retry)</li>'
-          + '<li>Reference typo or mismatch</li>'
-          + '<li>Payment was not successful</li>'
-          + '<li>Network delay</li></ul>'
-          + 'If you have paid and still see this, please contact support.';
-        icon = '<img src="https://img.icons8.com/ios/50/delete-sign--v1.png" alt="Error" style="width:40px;height:40px;">';
-        buttonText = 'Contact Support';
-        buttonHref = 'https://t.me/pbmhub_bot';
-        showRetry = true;
-        debugInfo = `<pre style='text-align:left;overflow-x:auto;font-size:10px;background:#f8f9ff;border-radius:8px;padding:8px;'>${JSON.stringify(error.response.data, null, 2)}</pre>`;
-      } else if (error.response) {
-        status = 'error';
-        message = 'Verification Failed';
-        details = `Unable to verify your payment.<br>Paystack error: <b>${error.response.data.message || error.response.statusText}</b><br>Please contact support if you have been charged.`;
-        debugInfo = `<pre style='text-align:left;overflow-x:auto;font-size:10px;background:#f8f9ff;border-radius:8px;padding:8px;'>${JSON.stringify(error.response.data, null, 2)}</pre>`;
-        buttonText = 'Contact Support';
-        buttonHref = 'https://t.me/pbmhub_bot';
-        showRetry = true;
-      } else {
-        status = 'error';
-        message = 'Verification Failed';
-        details = 'Unable to verify your payment. Please contact support if you have been charged.';
-        debugInfo = `<pre style='text-align:left;overflow-x:auto;font-size:10px;background:#f8f9ff;border-radius:8px;padding:8px;'>${error.message}</pre>`;
-        buttonText = 'Contact Support';
-        buttonHref = 'https://t.me/pbmhub_bot';
-        showRetry = true;
-      }
-      icon = '<img src="https://img.icons8.com/ios/50/delete-sign--v1.png" alt="Error" style="width:40px;height:40px;">';
-    }
-  }
-
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Payment Verification - PBM HUB</title>
+  <title>Payment Complete - PBM HUB</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
@@ -913,35 +814,29 @@ app.get('/verify.html', async (req, res) => {
     .reference { background: #e3f2fd; border: 1px solid #bbdefb; border-radius: 8px; padding: 6px; margin: 8px 0; font-family: 'Poppins', 'Courier New', monospace; font-size: 11px; color: #1565c0; word-break: break-all; font-weight: 500; }
     .btn { background: linear-gradient(135deg, #1e3c72, #2a5298); color: white; border: none; padding: 6px 12px; border-radius: 16px; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; text-decoration: none; display: inline-block; margin: 0 2px; letter-spacing: 0.3px; min-width: 80px; }
     .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(30,60,114,0.18); }
-    .btn-secondary { background: white; color: #1e3c72; border: 2px solid #1e3c72; }
-    .btn-secondary:hover { background: #1e3c72; color: white; }
     #actionButtons { display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 6px; margin-top: 6px; }
     .footer { margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; color: #999; font-size: 9px; font-weight: 400; }
     .ghana-flag { display: inline-block; margin: 0 3px; }
-    .debug { margin-top: 10px; font-size: 9px; color: #888; text-align: left; background: #f8f9ff; border-radius: 8px; padding: 6px; }
   </style>
-  ${autoRefresh ? `<script>setTimeout(function(){window.location.reload();},10000);</script>` : ''}
 </head>
 <body>
   <div class="container">
-    <div class="logo"><img src="https://img.icons8.com/ios/50/card-in-use.png" alt="Card"></div>
+    <div class="logo"><img src="https://img.icons8.com/ios/50/follow.png" alt="Go to Bot"></div>
     <h1>PBM HUB</h1>
-    <p class="subtitle">Payment Verification <span class="ghana-flag">🇬🇭</span></p>
+    <p class="subtitle">Payment Complete <span class="ghana-flag">🇬🇭</span></p>
     <div class="status-card">
-      <div class="status-icon ${status}">${icon}</div>
-      <div class="status-message">${message}</div>
-      <div class="status-details">${details}</div>
+      <div class="status-icon"> <img src="https://img.icons8.com/ios/50/follow.png" alt="Go to Bot" style="width:32px;height:32px;"> </div>
+      <div class="status-message">Thank you for your payment!</div>
+      <div class="status-details">To complete your bundle purchase, please return to the Telegram bot and click <b>"I have paid"</b>.<br>The bot will verify your payment and process your bundle instantly.<br><br>If you have any issues, contact support.</div>
     </div>
     <div class="reference"><strong>Transaction Reference:</strong><br><span>${reference || 'N/A'}</span></div>
     <div id="actionButtons">
-      <a href="${buttonHref}" class="btn">${buttonText}</a>
-      ${showRetry ? '<a href="?reference=' + (reference || '') + '" class="btn btn-secondary">Try Again</a>' : ''}
+      <a href="https://t.me/pbmhub_bot" class="btn">Go to Telegram Bot</a>
     </div>
     <div class="footer">
       <p>Secure payments powered by Paystack <span class="ghana-flag">🇬🇭</span></p>
       <p>© 2025 PBM HUB Ghana. All rights reserved.</p>
     </div>
-    <div class="debug">${debugInfo}</div>
   </div>
 </body>
 </html>`);
