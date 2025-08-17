@@ -126,7 +126,7 @@ const DATA_PACKAGES = {
   mtn: {
     name: "MTN Ghana",
     packages: [
-      { id: 1, volumeGB: "1", priceGHS: 8.5, volume: "1000", network_id: 3, network: "MTN" },
+      { id: 1, volumeGB: "1", priceGHS: 1, volume: "1000", network_id: 3, network: "MTN" },
       { id: 2, volumeGB: "2", priceGHS: 16.0, volume: "2000", network_id: 3, network: "MTN" },
       { id: 3, volumeGB: "3", priceGHS: 23.5, volume: "3000", network_id: 3, network: "MTN" },
       { id: 4, volumeGB: "4", priceGHS: 31.0, volume: "4000", network_id: 3, network: "MTN" },
@@ -791,7 +791,7 @@ setInterval(
 
 // Serve dynamic verify.html for payment status
 app.get('/verify.html', async (req, res) => {
-  const reference = req.query.reference;
+  const reference = req.query.reference || req.query.trxref;
   let status = 'loading';
   let message = 'Verifying Payment...';
   let details = 'Please wait while we confirm your payment with Paystack.';
@@ -812,7 +812,8 @@ app.get('/verify.html', async (req, res) => {
     showRetry = true;
   } else {
     try {
-      const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+      const verifyUrl = `https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`;
+      const response = await axios.get(verifyUrl, {
         headers: {
           Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
         },
