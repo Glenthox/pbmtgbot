@@ -799,6 +799,7 @@ app.get('/verify.html', async (req, res) => {
   let buttonText = 'Continue to Telegram';
   let buttonHref = 'https://t.me/pbmhub_bot';
   let showRetry = false;
+  let debugInfo = '';
 
   if (!reference) {
     status = 'error';
@@ -816,6 +817,7 @@ app.get('/verify.html', async (req, res) => {
         },
         timeout: 10000,
       });
+      debugInfo = `<pre style='text-align:left;overflow-x:auto;font-size:10px;background:#f8f9ff;border-radius:8px;padding:8px;'>${JSON.stringify(response.data, null, 2)}</pre>`;
       if (response.data.status && response.data.data.status === 'success') {
         status = 'success';
         message = 'Payment Successful!';
@@ -844,7 +846,13 @@ app.get('/verify.html', async (req, res) => {
     } catch (error) {
       status = 'error';
       message = 'Verification Failed';
-      details = 'Unable to verify your payment. Please contact support if you have been charged.';
+      if (error.response) {
+        details = `Unable to verify your payment.<br>Paystack error: <b>${error.response.data.message || error.response.statusText}</b><br>Please contact support if you have been charged.`;
+        debugInfo = `<pre style='text-align:left;overflow-x:auto;font-size:10px;background:#f8f9ff;border-radius:8px;padding:8px;'>${JSON.stringify(error.response.data, null, 2)}</pre>`;
+      } else {
+        details = 'Unable to verify your payment. Please contact support if you have been charged.';
+        debugInfo = `<pre style='text-align:left;overflow-x:auto;font-size:10px;background:#f8f9ff;border-radius:8px;padding:8px;'>${error.message}</pre>`;
+      }
       icon = '<img src="https://img.icons8.com/ios/50/delete-sign--v1.png" alt="Error" style="width:40px;height:40px;">';
       buttonText = 'Contact Support';
       buttonHref = 'https://t.me/YourPBM_HUBUsername';
@@ -853,12 +861,12 @@ app.get('/verify.html', async (req, res) => {
   }
 
   res.send(`<!DOCTYPE html>
-<html lang=\"en\">
+<html lang="en">
 <head>
-  <meta charset=\"UTF-8\">
-  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Payment Verification - PBM HUB</title>
-  <link href=\"https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap\" rel=\"stylesheet\">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
     .container { background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); padding: 40px; max-width: 500px; width: 100%; text-align: center; position: relative; overflow: hidden; }
@@ -879,6 +887,7 @@ app.get('/verify.html', async (req, res) => {
     #actionButtons { display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 8px; margin-top: 8px; }
     .footer { margin-top: 18px; padding-top: 12px; border-top: 1px solid #eee; color: #999; font-size: 11px; font-weight: 400; }
     .ghana-flag { display: inline-block; margin: 0 5px; }
+    .debug { margin-top: 18px; font-size: 10px; color: #888; text-align: left; background: #f8f9ff; border-radius: 8px; padding: 8px; }
   </style>
 </head>
 <body>
@@ -900,6 +909,7 @@ app.get('/verify.html', async (req, res) => {
       <p>Secure payments powered by Paystack <span class="ghana-flag">🇬🇭</span></p>
       <p>© 2025 PBM HUB Ghana. All rights reserved.</p>
     </div>
+    <div class="debug">${debugInfo}</div>
   </div>
 </body>
 </html>`);
