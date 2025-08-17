@@ -230,46 +230,35 @@ async function handleNetworkSelection(chatId, messageId, network) {
   try {
     const dataPackages = getDataPackages()
     const packages = dataPackages[network]
-
     if (!packages || packages.packages.length === 0) {
-      const errorMessage = "❌ No packages available for this network. Please try again later."
-
-      try {
-        await bot.editMessageText(errorMessage, {
-          chat_id: chatId,
-          message_id: messageId,
-        })
-      } catch (editError) {
-        if (editError.response?.body?.description?.includes("message is not modified")) {
-          // Message is already showing this content, send new message instead
-          await bot.sendMessage(chatId, errorMessage)
-        } else {
-          throw editError
-        }
-      }
+      const errorMessage = "NO PACKAGES AVAILABLE FOR THIS NETWORK. PLEASE TRY AGAIN LATER."
+      await bot.editMessageText(errorMessage, {
+        chat_id: chatId,
+        message_id: messageId,
+      })
       return
     }
+    const message = `*${packages.name.toUpperCase()} DATA PACKAGES*
 
-    const message = `
-📶 *${packages.name} Data Packages* 🇬🇭
-
-Choose your preferred data bundle:
-    `
-
+SELECT YOUR PREFERRED BUNDLE:`
     const packageButtons = []
     for (let i = 0; i < packages.packages.length; i += 2) {
       packageButtons.push(
         packages.packages.slice(i, i + 2).map((pkg) => ({
-          text: `${pkg.volumeGB}GB • GH₵${pkg.priceGHS.toFixed(2)}`,
+          text: `${pkg.volumeGB}GB | GHS${pkg.priceGHS.toFixed(2)}`.toUpperCase(),
           callback_data: `package_${pkg.id}`,
-        })),
+        }))
       )
     }
-
     const keyboard = {
-      inline_keyboard: [...packageButtons, [{ text: "⬅️ Back to Networks", callback_data: "back_to_networks" }]],
+      inline_keyboard: [
+        ...packageButtons,
+        [
+          { text: "BACK", callback_data: "back_to_networks" },
+          { text: "HELP", callback_data: "help" }
+        ]
+      ]
     }
-
     await bot.editMessageText(message, {
       chat_id: chatId,
       message_id: messageId,
@@ -287,7 +276,6 @@ async function handlePackageSelection(chatId, messageId, packageId) {
     const dataPackages = getDataPackages()
     let selectedPackage = null
     let networkName = ""
-
     for (const [network, data] of Object.entries(dataPackages)) {
       const pkg = data.packages.find((p) => p.id == packageId)
       if (pkg) {
@@ -296,31 +284,24 @@ async function handlePackageSelection(chatId, messageId, packageId) {
         break
       }
     }
-
     if (!selectedPackage) {
-      await bot.editMessageText("❌ Package not found. Please try again.", {
+      await bot.editMessageText("PACKAGE NOT FOUND. PLEASE TRY AGAIN.", {
         chat_id: chatId,
         message_id: messageId,
       })
       return
     }
-
     userSessions.set(chatId, {
       package: selectedPackage,
       network: networkName,
       step: "phone_input",
     })
+    const message = `*PACKAGE SELECTED*
 
-    const message = `
-💎 *Package Selected*
+NETWORK: ${networkName.toUpperCase()}
+PACKAGE: ${selectedPackage.volumeGB}GB | GHS${selectedPackage.priceGHS.toFixed(2)}
 
-*Network:* ${networkName} 🇬🇭
-*Package:* ${selectedPackage.volumeGB}GB - GH₵${selectedPackage.priceGHS.toFixed(2)}
-
-📱 Please enter your Ghana phone number:
-(Format: 0241234567 or +233241234567)
-    `
-
+ENTER YOUR GHANA PHONE NUMBER (E.G. 0241234567 OR +233241234567):`
     await bot.editMessageText(message, {
       chat_id: chatId,
       message_id: messageId,
@@ -361,8 +342,6 @@ async function initiatePayment(chatId, session) {
   try {
     const reference = generateReference()
     const amount = Math.round(session.package.priceGHS * 100)
-
-    // In initiatePayment, use correct callback_url
     const paymentData = {
       email: `user${chatId}@pbmhub.com`,
       amount: amount,
@@ -376,7 +355,6 @@ async function initiatePayment(chatId, session) {
         network: session.network,
       },
     }
-
     const response = await axios.post("https://api.paystack.co/transaction/initialize", paymentData, {
       headers: {
         Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
@@ -384,32 +362,32 @@ async function initiatePayment(chatId, session) {
       },
       timeout: 15000,
     })
-
     if (response.data.status) {
       const paymentUrl = response.data.data.authorization_url
-
       session.reference = reference
       session.paymentInitiated = Date.now()
       userSessions.set(chatId, session)
+      const message = `*PAYMENT DETAILS*
 
-      const message = `💳 Payment Details 🇬🇭
+NETWORK: ${session.network.toUpperCase()}
+PACKAGE: ${session.package.volumeGB}GB | GHS${session.package.priceGHS.toFixed(2)}
+PHONE: ${session.phoneNumber}
+AMOUNT: GHS${session.package.priceGHS.toFixed(2)}
+REFERENCE: ${reference}
 
-Network: ${session.network}
-Package: ${session.package.volumeGB}GB - GH₵${session.package.priceGHS.toFixed(2)}
-Phone: ${session.phoneNumber}
-Amount: GH₵${session.package.priceGHS.toFixed(2)}
-Reference: ${reference}
-
-Click the button below to complete your payment:`
-
+SELECT AN OPTION BELOW TO CONTINUE:`
       const keyboard = {
         inline_keyboard: [
-          [{ text: "💎 Pay Now", url: paymentUrl }],
-          [{ text: "✅ I have paid", callback_data: `confirm_${reference}` }],
-          [{ text: "❌ Cancel", callback_data: "back_to_networks" }],
-        ],
+          [
+            { text: "PAY", url: paymentUrl },
+            { text: "I PAID", callback_data: `confirm_${reference}` }
+          ],
+          [
+            { text: "CANCEL", callback_data: "back_to_networks" },
+            { text: "HELP", callback_data: "help" }
+          ]
+        ]
       }
-
       await bot.sendMessage(chatId, message, {
         reply_markup: keyboard,
       })
@@ -631,22 +609,25 @@ Thank you for using PBM HUB Ghana! 💎`
 }
 
 async function showNetworkSelection(chatId, messageId) {
-  const message = `
-📱 *Choose Your Network* 🇬🇭
+  const message = `*CHOOSE YOUR NETWORK*
 
-Select your preferred network provider:
-  `
-
+SELECT YOUR PREFERRED NETWORK PROVIDER:`
   const keyboard = {
     inline_keyboard: [
       [
-        { text: "📶 MTN Ghana", callback_data: "network_mtn" },
-        { text: "📡 Telecel Ghana", callback_data: "network_telecel" },
+        { text: "MTN", callback_data: "network_mtn" },
+        { text: "TELECEL", callback_data: "network_telecel" }
       ],
-      [{ text: "🌐 AirtelTigo Ghana", callback_data: "network_airteltigo" }],
-    ],
+      [
+        { text: "AIRTELTIGO", callback_data: "network_airteltigo" },
+        { text: "HELP", callback_data: "help" }
+      ],
+      [
+        { text: "SUPPORT", callback_data: "support" },
+        { text: "EXIT", callback_data: "exit" }
+      ]
+    ]
   }
-
   bot.editMessageText(message, {
     chat_id: chatId,
     message_id: messageId,
@@ -656,37 +637,26 @@ Select your preferred network provider:
 }
 
 async function showHelp(chatId, messageId) {
-  const helpMessage = `
-❓ *Help & Instructions* 🇬🇭
+  const helpMessage = `*HELP & INSTRUCTIONS*
 
-*How to use PBM HUB Ghana:*
+HOW TO USE PBM HUB GHANA:
+1. CHOOSE NETWORK
+2. SELECT DATA PACKAGE
+3. ENTER PHONE NUMBER
+4. COMPLETE PAYMENT
+5. CLICK "I PAID" TO ACTIVATE
 
-1️⃣ Choose your network (MTN, Telecel, or AirtelTigo)
-2️⃣ Select your preferred data package (1-5GB)
-3️⃣ Enter your Ghana phone number
-4️⃣ Complete payment via Paystack (GHS)
-5️⃣ Receive instant data activation
-
-*Supported Networks:*
-• 📶 MTN Ghana
-• 📡 Telecel Ghana
-• 🌐 AirtelTigo Ghana
-
-*Payment Methods:*
-• 💳 Debit/Credit Cards
-• 🏦 Mobile Money
-• 📱 Bank Transfer
-
-*Data Packages:*
-• 💎 1GB to 5GB options available
-• 🎯 Best rates in Ghana
-• ⚡ Instant activation
-  `
-
+SUPPORTED NETWORKS: MTN, TELECEL, AIRTELTIGO
+PAYMENT METHODS: CARD, MOBILE MONEY, BANK
+DATA PACKAGES: 1GB TO 5GB, BEST RATES, INSTANT ACTIVATION.`
   const keyboard = {
-    inline_keyboard: [[{ text: "⬅️ Back to Main Menu", callback_data: "back_to_networks" }]],
+    inline_keyboard: [
+      [
+        { text: "BACK", callback_data: "back_to_networks" },
+        { text: "EXIT", callback_data: "exit" }
+      ]
+    ]
   }
-
   bot.editMessageText(helpMessage, {
     chat_id: chatId,
     message_id: messageId,
@@ -696,33 +666,32 @@ async function showHelp(chatId, messageId) {
 }
 
 async function showSupport(chatId, messageId) {
-  const supportMessage = `
-🎧 *Customer Support* 🇬🇭
+  const supportMessage = `*CUSTOMER SUPPORT*
 
-Need help? We're here for you!
+FOR HELP, CONTACT US:
+EMAIL: SUPPORT@PBMHUB.GH
+PHONE: +233 50 123 4567
+TELEGRAM: @PBMHUBGHANASUPPORT
 
-*Contact Options:*
-• 📧 Email: update@pbmdatahub.pro
-• 💬 Telegram: @glenthox
+BUSINESS HOURS:
+MON-FRI: 8AM-8PM
+SAT-SUN: 10AM-6PM
 
-*Business Hours:*
-Monday - Friday: 7:00 AM - 8:00 PM (GMT)
-Saturday: 7:00 AM - 6:00 PM (GMT)
+COMMON ISSUES:
+- PAYMENT NOT REFLECTING
+- DATA NOT RECEIVED
+- WRONG NUMBER ENTERED
+- REFUND REQUESTS
 
-*Common Issues:*
-• 💳 Payment not reflecting
-• 📱 Data not received
-• ❌ Wrong number entered
-• 💰 Refund requests
-
-We typically respond within 10minutes! 💎
-Fast Reply On Telegram!
-  `
-
+WE RESPOND WITHIN 30 MINUTES.`
   const keyboard = {
-    inline_keyboard: [[{ text: "⬅️ Back to Main Menu", callback_data: "back_to_networks" }]],
+    inline_keyboard: [
+      [
+        { text: "BACK", callback_data: "back_to_networks" },
+        { text: "EXIT", callback_data: "exit" }
+      ]
+    ]
   }
-
   bot.editMessageText(supportMessage, {
     chat_id: chatId,
     message_id: messageId,
@@ -797,40 +766,45 @@ app.get('/verify.html', async (req, res) => {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PAYMENT COMPLETE - PBM HUB</title>
+  <title>Payment Complete - PBM HUB</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
     body { font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
     .container { background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0,0,0,0.1); padding: 24px 18px; max-width: 420px; width: 100%; text-align: center; position: relative; overflow: hidden; }
     .container::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 5px; background: linear-gradient(90deg, #1e3c72, #2a5298, #1e3c72); }
-    h1 { color: #1e3c72; font-size: 22px; margin-bottom: 8px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
-    .subtitle { color: #666; font-size: 13px; margin-bottom: 18px; font-weight: 600; text-transform: uppercase; }
+    .logo { width: 60px; height: 60px; background: linear-gradient(135deg, #1e3c72, #2a5298); border-radius: 50%; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; }
+    .logo img { width:36px;height:36px; }
+    h1 { color: #1e3c72; font-size: 22px; margin-bottom: 8px; font-weight: 700; letter-spacing: 1px; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 18px; font-weight: 500; }
     .status-card { background: #f8f9ff; border: 2px solid #e3e8ff; border-radius: 12px; padding: 10px 8px; margin: 10px 0; min-height: 70px; }
-    .status-message { font-size: 14px; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.3px; text-transform: uppercase; }
-    .status-details { font-size: 12px; color: #333; line-height: 1.5; font-weight: 500; text-transform: uppercase; }
-    .reference { background: #e3f2fd; border: 1px solid #bbdefb; border-radius: 8px; padding: 6px; margin: 8px 0; font-family: 'Poppins', 'Courier New', monospace; font-size: 12px; color: #1565c0; word-break: break-all; font-weight: 600; text-transform: uppercase; }
-    #actionButtons { display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 10px; margin-top: 10px; }
-    .btn { background: linear-gradient(135deg, #1e3c72, #2a5298); color: white; border: none; padding: 10px 0; border-radius: 16px; font-size: 12px; font-weight: 700; cursor: pointer; transition: all 0.3s ease; text-decoration: none; width: 48%; text-align: center; letter-spacing: 1px; text-transform: uppercase; }
+    .status-icon { width: 32px; height: 32px; border-radius: 50%; margin: 0 auto 4px; display: flex; align-items: center; justify-content: center; font-size: 22px; }
+    .status-message { font-size: 13px; font-weight: 600; margin-bottom: 4px; letter-spacing: 0.3px; }
+    .status-details { font-size: 11px; color: #666; line-height: 1.4; font-weight: 400; }
+    .reference { background: #e3f2fd; border: 1px solid #bbdefb; border-radius: 8px; padding: 6px; margin: 8px 0; font-family: 'Poppins', 'Courier New', monospace; font-size: 11px; color: #1565c0; word-break: break-all; font-weight: 500; }
+    .btn { background: linear-gradient(135deg, #1e3c72, #2a5298); color: white; border: none; padding: 6px 12px; border-radius: 16px; font-size: 11px; font-weight: 500; cursor: pointer; transition: all 0.3s ease; text-decoration: none; display: inline-block; margin: 0 2px; letter-spacing: 0.3px; min-width: 80px; }
     .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 12px rgba(30,60,114,0.18); }
-    .footer { margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; color: #999; font-size: 10px; font-weight: 600; text-transform: uppercase; }
+    #actionButtons { display: flex; flex-direction: row; justify-content: center; align-items: center; gap: 6px; margin-top: 6px; }
+    .footer { margin-top: 10px; padding-top: 8px; border-top: 1px solid #eee; color: #999; font-size: 9px; font-weight: 400; }
+    .ghana-flag { display: inline-block; margin: 0 3px; }
   </style>
 </head>
 <body>
   <div class="container">
+    <div class="logo"><img src="https://img.icons8.com/ios/50/follow.png" alt="Go to Bot"></div>
     <h1>PBM HUB</h1>
-    <p class="subtitle">PAYMENT COMPLETE</p>
+    <p class="subtitle">Follow Instruction To Proceed!</p>
     <div class="status-card">
-      <div class="status-message">PAYMENT RECEIVED</div>
-      <div class="status-details">PLEASE RETURN TO THE TELEGRAM BOT AND CLICK <b>I HAVE PAID</b> TO COMPLETE YOUR PURCHASE. THE BOT WILL VERIFY YOUR PAYMENT AND PROCESS YOUR DATA BUNDLE IMMEDIATELY. IF YOU REQUIRE ASSISTANCE, PLEASE CONTACT SUPPORT.</div>
+      <div class="status-icon"> <img src="https://img.icons8.com/ios/50/follow.png" alt="Go to Bot" style="width:32px;height:32px;"> </div>
+      <div class="status-message">Thank you for your payment!</div>
+      <div class="status-details">To complete your bundle purchase, please return to the Telegram bot and click <b>"I have paid"</b>.<br>The bot will verify your payment and process your bundle instantly.<br><br>If you have any issues, contact support.</div>
     </div>
-    <div class="reference"><strong>TRANSACTION REFERENCE:</strong><br><span>${reference || 'N/A'}</span></div>
+    <div class="reference"><strong>Transaction Reference:</strong><br><span>${reference || 'N/A'}</span></div>
     <div id="actionButtons">
-      <a href="https://t.me/pbmhub_bot" class="btn">GO TO BOT</a>
-      <a href="mailto:support@pbmhub.com" class="btn">SUPPORT</a>
+      <a href="https://t.me/pbmhub_bot" class="btn">Go to Telegram Bot</a>
     </div>
     <div class="footer">
-      <p>SECURE PAYMENTS POWERED BY PAYSTACK</p>
-      <p>© 2025 PBM HUB GHANA. ALL RIGHTS RESERVED.</p>
+      <p>Secure payments powered by Paystack <span class="ghana-flag">🇬🇭</span></p>
+      <p>© 2025 PBM HUB Ghana. All rights reserved.</p>
     </div>
   </div>
 </body>
