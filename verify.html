@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Verification - PBM HUB</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 5px;
+            background: linear-gradient(90deg, #1e3c72, #2a5298, #1e3c72);
+        }
+        .logo {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            color: white;
+            font-weight: 700;
+        }
+        h1 {
+            color: #1e3c72;
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+        .subtitle {
+            color: #666;
+            font-size: 16px;
+            margin-bottom: 30px;
+            font-weight: 500;
+        }
+        .status-card {
+            background: #f8f9ff;
+            border: 2px solid #e3e8ff;
+            border-radius: 15px;
+            padding: 16px 12px;
+            margin: 12px 0;
+            min-height: 120px;
+        }
+        .status-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            margin: 0 auto 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+        }
+        .loading {
+            background: #fff3cd;
+            color: #856404;
+            animation: pulse 2s infinite;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .spinner {
+            width: 24px;
+            height: 24px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #1e3c72;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .status-message {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            letter-spacing: 0.3px;
+        }
+        .status-details {
+            font-size: 12px;
+            color: #666;
+            line-height: 1.4;
+            font-weight: 400;
+        }
+        .reference {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 8px;
+            padding: 8px;
+            margin: 10px 0;
+            font-family: 'Poppins', 'Courier New', monospace;
+            font-size: 12px;
+            color: #1565c0;
+            word-break: break-all;
+            font-weight: 500;
+        }
+        .btn {
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 18px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+            margin: 0 4px;
+            letter-spacing: 0.3px;
+            min-width: 100px;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(30, 60, 114, 0.18);
+        }
+        .btn-secondary {
+            background: white;
+            color: #1e3c72;
+            border: 2px solid #1e3c72;
+        }
+        .btn-secondary:hover {
+            background: #1e3c72;
+            color: white;
+        }
+        #actionButtons {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+        }
+        .footer {
+            margin-top: 18px;
+            padding-top: 12px;
+            border-top: 1px solid #eee;
+            color: #999;
+            font-size: 11px;
+            font-weight: 400;
+        }
+        .ghana-flag {
+            display: inline-block;
+            margin: 0 5px;
+        }
+        @media (max-width: 600px) {
+            .container {
+                padding: 30px 10px;
+                margin: 10px;
+            }
+            h1 {
+                font-size: 22px;
+            }
+            .btn {
+                padding: 12px 20px;
+                font-size: 14px;
+            }
+            .status-message {
+                font-size: 16px;
+            }
+            .reference {
+                font-size: 13px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+    <div class="logo"><img src="https://img.icons8.com/ios/50/card-in-use.png" alt="Card" style="width:48px;height:48px;"></div>
+        <h1>PBM HUB</h1>
+        <p class="subtitle">Payment Verification <span class="ghana-flag">🇬🇭</span></p>
+
+        <div class="status-card">
+            <div class="status-icon loading" id="statusIcon">
+                <div class="spinner"></div>
+            </div>
+            <div class="status-message" id="statusMessage">Verifying Payment...</div>
+            <div class="status-details" id="statusDetails">Please wait while we confirm your payment with Paystack.</div>
+        </div>
+
+        <div class="reference" id="referenceDiv">
+            <strong>Transaction Reference:</strong><br>
+            <span id="referenceText"></span>
+        </div>
+
+        <div id="actionButtons" style="display: none;">
+            <a href="#" class="btn" id="continueBtn">Continue to Telegram</a>
+            <a href="#" class="btn btn-secondary" id="retryBtn">Retry Verification</a>
+        </div>
+
+        <div class="footer">
+            <p>Secure payments powered by Paystack <span class="ghana-flag">🇬🇭</span></p>
+            <p>© 2025 PBM HUB Ghana. All rights reserved.</p>
+        </div>
+    </div>
+
+    <script>
+        // Get reference from URL parameters
+        const urlParams = new URLSearchParams(window.location.search);
+        const reference = urlParams.get('reference');
+        const trxref = urlParams.get('trxref') || reference;
+
+        // Always show reference
+        document.getElementById('referenceText').textContent = trxref || 'N/A';
+
+        // Verify payment function
+        async function verifyPayment() {
+            if (!trxref) {
+                showError('No transaction reference found', 'Please ensure you accessed this page from a valid payment link.');
+                return;
+            }
+            showLoading();
+            try {
+                // Make actual API call to verify payment
+                const response = await fetch(`/api/verify-payment?reference=${trxref}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                const result = await response.json();
+                if (result.success) {
+                    showSuccess();
+                } else {
+                    showError('Payment Verification Failed', result.message || 'Unable to verify your payment. Please contact support.');
+                }
+            } catch (error) {
+                console.error('Verification error:', error);
+                // Check URL parameters for Paystack response as fallback
+                const status = urlParams.get('status');
+                if (status === 'success') {
+                    showSuccess();
+                } else if (status === 'cancelled') {
+                    showError('Payment Cancelled', 'You cancelled the payment process. Please try again if you want to complete your purchase.');
+                } else {
+                    showError('Verification Failed', 'Unable to verify your payment. Please contact support if you have been charged.');
+                }
+            }
+        }
+
+        function showLoading() {
+            const statusIcon = document.getElementById('statusIcon');
+            const statusMessage = document.getElementById('statusMessage');
+            const statusDetails = document.getElementById('statusDetails');
+            statusIcon.className = 'status-icon loading';
+            statusIcon.innerHTML = '<div class="spinner"></div>';
+            statusMessage.textContent = 'Verifying Payment...';
+            statusDetails.textContent = 'Please wait while we confirm your payment with Paystack.';
+            document.getElementById('actionButtons').style.display = 'none';
+        }
+
+        function showSuccess() {
+            const statusIcon = document.getElementById('statusIcon');
+            const statusMessage = document.getElementById('statusMessage');
+            const statusDetails = document.getElementById('statusDetails');
+            const actionButtons = document.getElementById('actionButtons');
+            statusIcon.className = 'status-icon success';
+            statusIcon.innerHTML = '<img src="https://img.icons8.com/doodle/50/ok.png" alt="Success" style="width:36px;height:36px;">';
+            statusMessage.textContent = 'Payment Successful!';
+            statusDetails.innerHTML = 'Your payment has been confirmed.<br>Your data bundle will be activated shortly.';
+            actionButtons.style.display = 'flex';
+            document.getElementById('continueBtn').textContent = 'Continue to Telegram';
+            document.getElementById('continueBtn').href = 'https://t.me/pbmhub_bot';
+            document.getElementById('retryBtn').style.display = 'none';
+            setTimeout(() => {
+                window.location.href = 'https://t.me/pbmhub_bot';
+            }, 5000);
+        }
+
+        function showError(title, message) {
+            const statusIcon = document.getElementById('statusIcon');
+            const statusMessage = document.getElementById('statusMessage');
+            const statusDetails = document.getElementById('statusDetails');
+            const actionButtons = document.getElementById('actionButtons');
+            statusIcon.className = 'status-icon error';
+            statusIcon.innerHTML = '<img src="https://img.icons8.com/ios/50/delete-sign--v1.png" alt="Error" style="width:40px;height:40px;">';
+            statusMessage.textContent = title;
+            statusDetails.innerHTML = message;
+            actionButtons.style.display = 'block';
+            document.getElementById('continueBtn').textContent = 'Contact Support';
+            document.getElementById('continueBtn').href = 'https://t.me/YourPBM_HUBUsername';
+            document.getElementById('retryBtn').style.display = 'inline-block';
+            document.getElementById('retryBtn').href = '#';
+        }
+
+        // Start verification when page loads
+        window.addEventListener('load', verifyPayment);
+
+        // Handle retry button
+        document.getElementById('retryBtn').addEventListener('click', function(e) {
+            e.preventDefault();
+            verifyPayment();
+        });
+    </script>
+</body>
+</html>
