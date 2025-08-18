@@ -1,7 +1,7 @@
 {
   "name": "telegram-data-bot",
   "version": "1.0.0",
-  "description": "A Telegram bot for purchasing data bundles with Paystack integration",
+  "description": "A Telegram bot for purchasing data bundles with Paystack and wallet integration using Firebase",
   "main": "bot.js",
   "scripts": {
     "start": "node bot.js",
@@ -12,22 +12,25 @@
     "bot",
     "data",
     "paystack",
+    "wallet",
+    "firebase",
     "nodejs"
   ],
   "author": "PBM HUB",
   "license": "MIT",
   "dependencies": {
-    "axios": "^1.6.7",
+    "axios": "^1.6.8",
+    "body-parser": "^1.20.2",
     "crypto": "^1.0.1",
-    "dotenv": "^17.2.1",
-    "node-telegram-bot-api": "^0.61.0",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2",
-    "body-parser": "^1.20.2"
+    "firebase-admin": "^12.1.1",
+    "node-telegram-bot-api": "^0.61.0"
   },
   "devDependencies": {
-    "nodemon": "^3.0.0"
+    "nodemon": "^3.1.0"
   },
   "engines": {
-    "node": ">=16.0.0"
+    "node": ">=18.0.0"
   }
 }
