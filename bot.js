@@ -12,6 +12,51 @@ const PAYSTACK_PUBLIC_KEY = process.env.PAYSTACK_PUBLIC_KEY
 const FOSTER_API_KEY = process.env.FOSTER_API_KEY
 const FOSTER_BASE_URL = "https://agent.jaybartservices.com/api/v1"
 
+// Firebase Realtime Database config
+const FIREBASE_URL = "https://crudapp-c51d3-default-rtdb.asia-southeast1.firebasedatabase.app/"
+
+// Firebase helpers
+async function firebaseSet(path, data) {
+  return axios.put(`${FIREBASE_URL}${path}.json`, data)
+}
+
+async function firebaseUpdate(path, data) {
+  return axios.patch(`${FIREBASE_URL}${path}.json`, data)
+}
+
+async function firebaseGet(path) {
+  const res = await axios.get(`${FIREBASE_URL}${path}.json`)
+  return res.data
+}
+
+// Save user profile
+async function saveUserProfile(user) {
+  const profile = {
+    username: user.username || "unknown",
+    first_name: user.first_name || "",
+    wallet: 0
+  }
+  await firebaseSet(`users/${user.id}/profile`, profile)
+}
+
+// Update wallet balance
+async function updateWallet(userId, amount) {
+  const profile = await firebaseGet(`users/${userId}/profile`)
+  const newBalance = (profile?.wallet || 0) + amount
+  await firebaseUpdate(`users/${userId}/profile`, { wallet: newBalance })
+  return newBalance
+}
+
+// Save order
+async function saveOrder(userId, orderId, orderData) {
+  await firebaseSet(`users/${userId}/orders/${orderId}`, orderData)
+}
+
+// Save transaction
+async function saveTransaction(userId, txnId, txnData) {
+  await firebaseSet(`users/${userId}/transactions/${txnId}`, txnData)
+}
+
 // Express server for webhook
 const app = express()
 app.use(bodyParser.json())
@@ -116,57 +161,57 @@ const DATA_PACKAGES = {
   mtn: {
     name: "MTN Ghana",
     packages: [
-      { id: 1, volumeGB: "1", priceGHS: 5.5, volume: "1000", network_id: 3, network: "MTN" },
-      { id: 2, volumeGB: "2", priceGHS: 10.5, volume: "2000", network_id: 3, network: "MTN" },
-      { id: 3, volumeGB: "3", priceGHS: 15.5, volume: "3000", network_id: 3, network: "MTN" },
-      { id: 4, volumeGB: "4", priceGHS: 20.5, volume: "4000", network_id: 3, network: "MTN" },
-      { id: 5, volumeGB: "5", priceGHS: 25.5, volume: "5000", network_id: 3, network: "MTN" },
-      { id: 6, volumeGB: "6", priceGHS: 29.5, volume: "6000", network_id: 3, network: "MTN" },
-      { id: 7, volumeGB: "8", priceGHS: 38.5, volume: "8000", network_id: 3, network: "MTN" },
-      { id: 8, volumeGB: "10", priceGHS: 47.5, volume: "10000", network_id: 3, network: "MTN" },
-      { id: 9, volumeGB: "15", priceGHS: 65.0, volume: "15000", network_id: 3, network: "MTN" },
-      { id: 10, volumeGB: "20", priceGHS: 85.0, volume: "20000", network_id: 3, network: "MTN" },
-      { id: 11, volumeGB: "25", priceGHS: 105.0, volume: "25000", network_id: 3, network: "MTN" },
-      { id: 12, volumeGB: "30", priceGHS: 128.0, volume: "30000", network_id: 3, network: "MTN" },
-      { id: 13, volumeGB: "40", priceGHS: 170.0, volume: "40000", network_id: 3, network: "MTN" },
-      { id: 14, volumeGB: "50", priceGHS: 210.0, volume: "50000", network_id: 3, network: "MTN" },
-      { id: 15, volumeGB: "100", priceGHS: 420.0, volume: "100000", network_id: 3, network: "MTN" },
+      { id: 1, volumeGB: "1", priceGHS: 4.8, volume: "1000", network_id: 3, network: "MTN" },
+      { id: 2, volumeGB: "2", priceGHS: 9.2, volume: "2000", network_id: 3, network: "MTN" },
+      { id: 3, volumeGB: "3", priceGHS: 13.5, volume: "3000", network_id: 3, network: "MTN" },
+      { id: 4, volumeGB: "4", priceGHS: 17.8, volume: "4000", network_id: 3, network: "MTN" },
+      { id: 5, volumeGB: "5", priceGHS: 22.0, volume: "5000", network_id: 3, network: "MTN" },
+      { id: 6, volumeGB: "6", priceGHS: 25.5, volume: "6000", network_id: 3, network: "MTN" },
+      { id: 7, volumeGB: "8", priceGHS: 33.5, volume: "8000", network_id: 3, network: "MTN" },
+      { id: 8, volumeGB: "10", priceGHS: 41.5, volume: "10000", network_id: 3, network: "MTN" },
+      { id: 9, volumeGB: "15", priceGHS: 59.0, volume: "15000", network_id: 3, network: "MTN" },
+      { id: 10, volumeGB: "20", priceGHS: 76.0, volume: "20000", network_id: 3, network: "MTN" },
+      { id: 11, volumeGB: "25", priceGHS: 94.0, volume: "25000", network_id: 3, network: "MTN" },
+      { id: 12, volumeGB: "30", priceGHS: 112.0, volume: "30000", network_id: 3, network: "MTN" },
+      { id: 13, volumeGB: "40", priceGHS: 148.0, volume: "40000", network_id: 3, network: "MTN" },
+      { id: 14, volumeGB: "50", priceGHS: 185.0, volume: "50000", network_id: 3, network: "MTN" },
+      { id: 15, volumeGB: "100", priceGHS: 370.0, volume: "100000", network_id: 3, network: "MTN" },
     ],
   },
   airteltigo: {
     name: "AirtelTigo Ghana",
     packages: [
-      { id: 16, volumeGB: "1", priceGHS: 4.7, volume: "1000", network_id: 1, network: "AirtelTigo" },
-      { id: 17, volumeGB: "2", priceGHS: 9.4, volume: "2000", network_id: 1, network: "AirtelTigo" },
-      { id: 18, volumeGB: "3", priceGHS: 14.1, volume: "3000", network_id: 1, network: "AirtelTigo" },
-      { id: 19, volumeGB: "4", priceGHS: 18.8, volume: "4000", network_id: 1, network: "AirtelTigo" },
-      { id: 20, volumeGB: "5", priceGHS: 23.5, volume: "5000", network_id: 1, network: "AirtelTigo" },
-      { id: 21, volumeGB: "6", priceGHS: 28.2, volume: "6000", network_id: 1, network: "AirtelTigo" },
-      { id: 22, volumeGB: "7", priceGHS: 32.9, volume: "7000", network_id: 1, network: "AirtelTigo" },
-      { id: 23, volumeGB: "8", priceGHS: 37.6, volume: "8000", network_id: 1, network: "AirtelTigo" },
-      { id: 24, volumeGB: "9", priceGHS: 42.3, volume: "9000", network_id: 1, network: "AirtelTigo" },
-      { id: 25, volumeGB: "10", priceGHS: 47.0, volume: "10000", network_id: 1, network: "AirtelTigo" },
-      { id: 26, volumeGB: "12", priceGHS: 56.4, volume: "12000", network_id: 1, network: "AirtelTigo" },
-      { id: 27, volumeGB: "15", priceGHS: 70.5, volume: "15000", network_id: 1, network: "AirtelTigo" },
-      { id: 28, volumeGB: "20", priceGHS: 94.0, volume: "20000", network_id: 1, network: "AirtelTigo" },
-      { id: 29, volumeGB: "25", priceGHS: 117.5, volume: "25000", network_id: 1, network: "AirtelTigo" },
-      { id: 30, volumeGB: "30", priceGHS: 141.0, volume: "30000", network_id: 1, network: "AirtelTigo" },
-      { id: 31, volumeGB: "40", priceGHS: 188.0, volume: "40000", network_id: 1, network: "AirtelTigo" },
-      { id: 32, volumeGB: "50", priceGHS: 235.0, volume: "50000", network_id: 1, network: "AirtelTigo" },
-      { id: 33, volumeGB: "100", priceGHS: 470.0, volume: "100000", network_id: 1, network: "AirtelTigo" },
+      { id: 16, volumeGB: "1", priceGHS: 4.5, volume: "1000", network_id: 1, network: "AirtelTigo" },
+      { id: 17, volumeGB: "2", priceGHS: 8.8, volume: "2000", network_id: 1, network: "AirtelTigo" },
+      { id: 18, volumeGB: "3", priceGHS: 13.0, volume: "3000", network_id: 1, network: "AirtelTigo" },
+      { id: 19, volumeGB: "4", priceGHS: 17.2, volume: "4000", network_id: 1, network: "AirtelTigo" },
+      { id: 20, volumeGB: "5", priceGHS: 21.5, volume: "5000", network_id: 1, network: "AirtelTigo" },
+      { id: 21, volumeGB: "6", priceGHS: 25.0, volume: "6000", network_id: 1, network: "AirtelTigo" },
+      { id: 22, volumeGB: "7", priceGHS: 28.5, volume: "7000", network_id: 1, network: "AirtelTigo" },
+      { id: 23, volumeGB: "8", priceGHS: 32.0, volume: "8000", network_id: 1, network: "AirtelTigo" },
+      { id: 24, volumeGB: "9", priceGHS: 35.5, volume: "9000", network_id: 1, network: "AirtelTigo" },
+      { id: 25, volumeGB: "10", priceGHS: 39.0, volume: "10000", network_id: 1, network: "AirtelTigo" },
+      { id: 26, volumeGB: "12", priceGHS: 46.5, volume: "12000", network_id: 1, network: "AirtelTigo" },
+      { id: 27, volumeGB: "15", priceGHS: 59.0, volume: "15000", network_id: 1, network: "AirtelTigo" },
+      { id: 28, volumeGB: "20", priceGHS: 74.0, volume: "20000", network_id: 1, network: "AirtelTigo" },
+      { id: 29, volumeGB: "25", priceGHS: 92.5, volume: "25000", network_id: 1, network: "AirtelTigo" },
+      { id: 30, volumeGB: "30", priceGHS: 111.0, volume: "30000", network_id: 1, network: "AirtelTigo" },
+      { id: 31, volumeGB: "40", priceGHS: 148.0, volume: "40000", network_id: 1, network: "AirtelTigo" },
+      { id: 32, volumeGB: "50", priceGHS: 185.0, volume: "50000", network_id: 1, network: "AirtelTigo" },
+      { id: 33, volumeGB: "100", priceGHS: 370.0, volume: "100000", network_id: 1, network: "AirtelTigo" },
     ],
   },
   telecel: {
     name: "Telecel Ghana",
     packages: [
-      { id: 34, volumeGB: "10", priceGHS: 50.0, volume: "10000", network_id: 2, network: "Telecel" },
-      { id: 35, volumeGB: "15", priceGHS: 75.0, volume: "15000", network_id: 2, network: "Telecel" },
-      { id: 36, volumeGB: "20", priceGHS: 100.0, volume: "20000", network_id: 2, network: "Telecel" },
-      { id: 37, volumeGB: "25", priceGHS: 125.0, volume: "25000", network_id: 2, network: "Telecel" },
-      { id: 38, volumeGB: "30", priceGHS: 150.0, volume: "30000", network_id: 2, network: "Telecel" },
-      { id: 39, volumeGB: "40", priceGHS: 200.0, volume: "40000", network_id: 2, network: "Telecel" },
-      { id: 40, volumeGB: "50", priceGHS: 250.0, volume: "50000", network_id: 2, network: "Telecel" },
-      { id: 41, volumeGB: "100", priceGHS: 500.0, volume: "100000", network_id: 2, network: "Telecel" },
+      { id: 34, volumeGB: "10", priceGHS: 42.0, volume: "10000", network_id: 2, network: "Telecel" },
+      { id: 35, volumeGB: "15", priceGHS: 63.0, volume: "15000", network_id: 2, network: "Telecel" },
+      { id: 36, volumeGB: "20", priceGHS: 84.0, volume: "20000", network_id: 2, network: "Telecel" },
+      { id: 37, volumeGB: "25", priceGHS: 105.0, volume: "25000", network_id: 2, network: "Telecel" },
+      { id: 38, volumeGB: "30", priceGHS: 126.0, volume: "30000", network_id: 2, network: "Telecel" },
+      { id: 39, volumeGB: "40", priceGHS: 168.0, volume: "40000", network_id: 2, network: "Telecel" },
+      { id: 40, volumeGB: "50", priceGHS: 210.0, volume: "50000", network_id: 2, network: "Telecel" },
+      { id: 41, volumeGB: "100", priceGHS: 420.0, volume: "100000", network_id: 2, network: "Telecel" },
     ],
   },
 }
@@ -392,7 +437,29 @@ async function initiatePayment(chatId, session) {
       session.reference = reference
       session.paymentInitiated = Date.now()
       userSessions.set(chatId, session)
-  const message = `*PAYMENT DETAILS*
+
+      // Log order and transaction in Firebase (pending)
+      const userId = chatId
+      const orderId = reference
+      const orderData = {
+        bundle: `${session.package.volumeGB}GB`,
+        amount: session.package.priceGHS,
+        payment_method: "paystack",
+        status: "pending",
+        timestamp: new Date().toISOString()
+      }
+      await saveOrder(userId, orderId, orderData)
+      const txnData = {
+        type: "deposit",
+        amount: session.package.priceGHS,
+        payment_method: "paystack",
+        status: "pending",
+        reference: reference,
+        timestamp: new Date().toISOString()
+      }
+      await saveTransaction(userId, reference, txnData)
+
+      const message = `*PAYMENT DETAILS*
 
 NETWORK: ${session.network.toUpperCase()}
 PACKAGE: ${session.package.volumeGB}GB | ₵${session.package.priceGHS.toFixed(2)}
@@ -482,6 +549,23 @@ async function handlePaymentConfirmation(chatId, messageId, reference) {
         return
       }
 
+      // Log transaction in Firebase
+      const userId = chatId
+      const txnId = paymentData.reference || reference
+      const txnData = {
+        type: "deposit",
+        amount: paymentData.amount / 100,
+        payment_method: "paystack",
+        status: "success",
+        reference: paymentData.reference,
+        timestamp: new Date().toISOString()
+      }
+      await saveTransaction(userId, txnId, txnData)
+      // Update wallet balance
+      await updateWallet(userId, paymentData.amount / 100)
+      // Send receipt message
+      await bot.sendMessage(chatId, "✅ Payment Successful. Please go back to the bot to proceed.")
+
       await processDataBundle(chatId, session)
       userSessions.delete(chatId)
     } else {
@@ -569,7 +653,7 @@ PLEASE RELAX WHILE WE PROCESS YOUR REQUEST...`
 
     // Handle Foster Console API response format
     if (result.success === true) {
-  const successMessage = `BUNDLE PROCESSED SUCCESSFULLY
+      const successMessage = `BUNDLE PROCESSED SUCCESSFULLY
 
 NETWORK: ${session.network}
 PACKAGE: ${session.package.volumeGB}GB - ₵${session.package.priceGHS.toFixed(2)}
@@ -577,6 +661,27 @@ PHONE: ${session.phoneNumber}
 TRANSACTION ID: ${result.transaction_code}
 
 THANK YOU FOR USING PBM HUB GHANA!`
+
+      // Log order and transaction in Firebase
+      const userId = chatId
+      const orderId = result.transaction_code || Date.now()
+      const orderData = {
+        bundle: `${session.package.volumeGB}GB`,
+        amount: session.package.priceGHS,
+        payment_method: "wallet",
+        status: "success",
+        timestamp: new Date().toISOString()
+      }
+      await saveOrder(userId, orderId, orderData)
+      const txnData = {
+        type: "purchase",
+        amount: session.package.priceGHS,
+        payment_method: "wallet",
+        status: "success",
+        reference: result.transaction_code || "wallet",
+        timestamp: new Date().toISOString()
+      }
+      await saveTransaction(userId, orderId, txnData)
 
       const keyboard = {
         inline_keyboard: [[{ text: "🔄 BUY AGAIN", callback_data: "back_to_networks" }]],
