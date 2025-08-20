@@ -377,6 +377,9 @@ bot.on("callback_query", async (query) => {
       await showWallet(chatId, messageId)
     } else if (data === "deposit_wallet") {
       await initiateWalletDeposit(chatId, messageId)
+    } else if (data.startsWith("deposit_")) {
+      const amount = Number.parseFloat(data.replace("deposit_", ""))
+      await processWalletDeposit(chatId, messageId, amount)
     } else if (data === "account_info") {
       await showAccountInfo(chatId, messageId)
     } else if (data.startsWith("pay_method_")) {
@@ -1681,7 +1684,7 @@ app.get("/verify.html", async (req, res) => {
   </div>
 </body>
 </html>`)
-})
+}
 
 async function updateWallet(userId, amount) {
   try {
@@ -1689,9 +1692,397 @@ async function updateWallet(userId, amount) {
     const currentBalance = profile?.wallet || 0
     const newBalance = currentBalance + amount
     await firebaseUpdate(`users/${userId}/profile`, { wallet: newBalance })
-    return { success: true, newBalance }
-  } catch (error) {
+    return { success: true, newBalance }\
+  } catch (error) {\
     console.error("Error updating wallet:", error)
     return { success: false, message: "Error processing wallet update" }
   }
+}
+
+async function processWalletDeposit(chatId, messageId, amount) {
+  try {
+    if (amount < 5 || amount > 500) {
+      await bot.editMessageText("❌ Invalid amount. Please choose between ₵5.00 - ₵500.00", {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🔙 BACK\", callback_data: "deposit_wallet" }]
+          ]
+        }
+      })
+      return
+    }
+
+    // Create session for deposit
+    const session = {
+      type: 'deposit',
+      depositAmount: amount,
+      chatId: chatId
+    }
+    userSessions.set(chatId, session)
+
+    await initiateDepositPayment(chatId, session)
+  } catch (error) {
+    console.error(\"Error processing wallet deposit:\", error)\
+    await bot.editMessageText(\"❌ Failed to process deposit. Please try again.", {\
+      chat_id: chatId,
+      message_id: messageId,
+      reply_markup: {
+        inline_keyboard: [\
+          [{ text: "🔄 TRY AGAIN\", callback_data: "deposit_wallet" }],\
+          [{ text: \"🏠 MAIN MENU\", callback_data: "back_to_main" }]
+        ]
+      }
+    })
+  }
+}
+
+async function initiateDepositPayment(chatId, session) {
+  try {\
+    console.log(\"[v0] Initiating deposit payment for amount:", session.depositAmount)
+    
+    const reference = generateReference()\
+    const amount = Math.round(session.depositAmount * 100) // Convert to kobo
+    
+    const paymentData = {\
+      email: \`user${chatId}@pbmhub.com`,\
+      amount: amount,
+      reference: reference,
+      currency: "GHS",
+      callback_url: `${WEBHOOK_URL}/verify.html?reference=${reference}`,
+      metadata: {
+        chatId: chatId,
+        type: 'wallet_deposit',
+        depositAmount: session.depositAmount,
+      },
+    }
+
+    console.log("[v0] Payment data:\", paymentData)
+\
+    const response = await axios.post("https://api.paystack.co/transaction/initialize", paymentData, {
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        "Content-Type": "application/json",
+      },
+      timeout: 15000,
+    })
+
+    console.log("[v0] Paystack response:", response.data)
+\
+    if (response.data.status) {\
+      const paymentUrl = response.data.data.authorization_url
+      session.reference = reference
+      session.paymentInitiated = Date.now()
+      userSessions.set(chatId, session)
+
+      // Log pending transaction in Firebase
+      const userId = chatId
+      const txnData = {
+        type: "wallet_deposit",
+        amount: session.depositAmount,
+        payment_method: "paystack",
+        status: "pending",
+        reference: reference,
+        timestamp: new Date().toISOString(),
+      }
+      await saveTransaction(userId, reference, txnData)
+
+      const message = `*💳 WALLET DEPOSIT PAYMENT*
+
+AMOUNT: ₵${session.depositAmount.toFixed(2)}
+REFERENCE: ${reference}
+
+Click PAY to complete your deposit, then click I PAID to confirm.
+
+⚠️ *IMPORTANT:* Only click "I PAID" after completing the payment!`
+
+      const keyboard = {
+        inline_keyboard: [
+          [
+            { text: "💳 PAY NOW", url: paymentUrl },
+            { text: "✅ I PAID", callback_data: `confirm_${reference}` },
+          ],
+          [
+            { text: "❌ CANCEL", callback_data: "my_wallet" },
+            { text: "❓ HELP", callback_data: "help" },
+          ],
+        ],
+      }
+
+      await bot.sendMessage(chatId, message, {
+        parse_mode: "Markdown",
+        reply_markup: keyboard,
+      })
+    } else {
+      throw new Error("Failed to initialize payment: " + JSON.stringify(response.data))
+    }
+  } catch (error) {
+    console.error("Deposit payment initialization error:", error)
+
+    let errorMessage = "❌ Failed to initialize deposit payment. "
+    
+    if (error.response && error.response.status === 401) {
+      errorMessage += "Invalid payment configuration."
+    } else if (error.code === "ETIMEDOUT") {
+      errorMessage += "Network timeout. Please check your connection."
+    } else {
+      errorMessage += "Please try again or contact support."
+    }
+
+    try {
+      await bot.sendMessage(chatId, errorMessage, {
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "🔄 TRY AGAIN", callback_data: "deposit_wallet" },
+              { text: "🎧 SUPPORT", callback_data: "support" }
+            ],
+            [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }]
+          ]
+        }
+      })
+    } catch (botError) {
+      console.error("Failed to send error message:", botError)
+    }
+  }
+}
+
+async function handlePaymentConfirmation(chatId, messageId, reference) {
+  try {
+    console.log("[v0] Confirming payment for reference:", reference)
+    
+    await bot.editMessageText("🔍 Verifying your payment...", {
+      chat_id: chatId,
+      message_id: messageId,
+    })
+
+    const session = userSessions.get(chatId)
+    if (!session) {
+      await bot.editMessageText(\"❌ Session expired. Please start a new transaction.", {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: {
+          inline_keyboard: [[{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }]],
+        },
+      })
+      return
+    }
+
+    // Clean reference (remove any extra characters)
+    const actualReference = reference.replace(/[^a-zA-Z0-9]/g, "")\
+    console.log("[v0] Cleaned reference:", actualReference)
+
+    const response = await axios.get(`https://api.paystack.co/transaction/verify/${actualReference}`, {
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+      },
+      timeout: 15000,
+    })
+
+    console.log("[v0] Verification response:", response.data)
+
+    if (response.data.status && response.data.data.status === "success") {
+      const paymentData = response.data.data
+      let expectedAmount
+
+      if (session.package) {
+        expectedAmount = Math.round(session.package.priceGHS * 100)
+      } else if (session.depositAmount) {
+        expectedAmount = Math.round(session.depositAmount * 100)
+      }
+
+      if (paymentData.amount !== expectedAmount) {
+        await bot.editMessageText("❌ Payment amount mismatch. Please contact support.", {
+          chat_id: chatId,
+          message_id: messageId,
+          reply_markup: {
+            inline_keyboard: [[{ text: "🎧 Contact Support", callback_data: "support" }]],
+          },
+        })
+        return
+      }
+
+      const userId = chatId
+      const actualAmount = paymentData.amount / 100
+
+      // Update transaction status to success
+      const txnData = {
+        type: session.type === 'deposit' ? "wallet_deposit" : "data_purchase",
+        amount: actualAmount,
+        payment_method: "paystack",
+        status: "success",
+        reference: paymentData.reference,
+        timestamp: new Date().toISOString(),
+        gateway_response: paymentData.gateway_response
+      }
+      await saveTransaction(userId, paymentData.reference, txnData)
+
+      if (session.package) {
+        // Data bundle purchase
+        await processDataBundle(chatId, session)
+        
+        const receiptMessage = `*🧾 PURCHASE RECEIPT*
+
+✅ *PAYMENT SUCCESSFUL*
+
+📱 NETWORK: ${session.network.toUpperCase()}
+📦 PACKAGE: ${session.package.volumeGB}GB
+💰 AMOUNT: ₵${actualAmount.toFixed(2)}
+📞 PHONE: ${session.phoneNumber}
+🔗 REFERENCE: ${paymentData.reference}
+📅 DATE: ${new Date().toLocaleString()}
+
+Your data bundle is being processed and will be delivered shortly!`
+
+        await bot.editMessageText(receiptMessage, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "📋 MY ORDERS", callback_data: "my_orders" },
+                { text: "🔄 BUY MORE", callback_data: "back_to_networks" }
+              ],
+              [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }]
+            ]
+          }
+        })
+
+      } else if (session.depositAmount) {
+        // Wallet deposit - credit wallet only after successful payment
+        const currentBalance = await getWalletBalance(userId)
+        const newBalance = currentBalance + actualAmount
+        
+        await updateWallet(userId, actualAmount)
+        
+        const receiptMessage = `*🧾 DEPOSIT RECEIPT*
+
+✅ *DEPOSIT SUCCESSFUL*
+
+💳 AMOUNT DEPOSITED: ₵${actualAmount.toFixed(2)}
+💰 PREVIOUS BALANCE: ₵${currentBalance.toFixed(2)}
+💰 NEW BALANCE: ₵${newBalance.toFixed(2)}
+🔗 REFERENCE: ${paymentData.reference}
+📅 DATE: ${new Date().toLocaleString()}
+
+Your wallet has been successfully credited!`
+
+        await bot.editMessageText(receiptMessage, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [
+              [
+                { text: "💰 MY WALLET", callback_data: "my_wallet" },
+                { text: "🔄 BUY DATA", callback_data: "back_to_networks" }
+              ],
+              [
+                { text: "📋 MY ORDERS", callback_data: "my_orders" },
+                { text: "🏠 MAIN MENU", callback_data: "back_to_main" }
+              ]
+            ]
+          }
+        })
+      }
+
+      userSessions.delete(chatId)
+    } else {
+      // Payment failed or pending
+      const status = response.data.data ? response.data.data.status : 'unknown'
+      
+      await bot.editMessageText(`❌ Payment verification failed.\n\nStatus: ${status.toUpperCase()}\n\nPlease try again or contact support if you were charged.`, {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "🔄 TRY AGAIN", callback_data: `confirm_${reference}` },
+              { text: "🎧 SUPPORT", callback_data: "support" }
+            ],
+            [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }]
+          ]
+        }
+      })
+    }
+  } catch (error) {
+    console.error("Payment confirmation error:", error)
+    
+    let errorMessage = "❌ Unable to verify payment. "
+    
+    if (error.response && error.response.status === 404) {
+      errorMessage += "Transaction not found. Please wait a moment and try again."
+    } else if (error.code === "ETIMEDOUT") {
+      errorMessage += "Network timeout. Please try again."
+    } else {
+      errorMessage += "Please contact support if you were charged."
+    }
+
+    await bot.editMessageText(errorMessage, {
+      chat_id: chatId,
+      message_id: messageId,
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "🔄 TRY AGAIN", callback_data: `confirm_${reference}` },
+            { text: "🎧 SUPPORT", callback_data: "support" }
+          ],
+          [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }]
+        ]
+      }
+    })
+  }
+}
+
+async function showMainMenu(chatId, messageId) {
+  const welcomeMessage = `*WELCOME TO PBM HUB GHANA*
+
+THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA.
+
+FEATURES:
+✅ MTN, TELECEL, AND AIRTELTIGO PACKAGES
+✅ SECURE PAYMENTS & WALLET SYSTEM
+✅ INSTANT DELIVERY
+✅ 24/7 SERVICE
+✅ BEST RATES
+
+SELECT YOUR NETWORK TO BEGIN.`
+
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: "📱 MTN", callback_data: "network_mtn" },
+        { text: \"📱 TELECEL", callback_data: "network_telecel" },
+      ],
+      [
+        { text: "📱 AIRTELTIGO", callback_data: "network_airteltigo" },
+        { text: "💰 MY WALLET", callback_data: "my_wallet" },
+      ],
+      [
+        { text: "📋 MY ORDERS", callback_data: "my_orders" },
+        { text: "👤 ACCOUNT INFO", callback_data: "account_info" },
+      ],
+      [
+        { text: "❓ HELP", callback_data: "help" },
+        { text: "🎧 SUPPORT", callback_data: "support" },\
+      ],
+    ],\
+  }
+
+  try {
+    await bot.editMessageText(welcomeMessage, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: "Markdown",
+      reply_markup: keyboard,
+    })
+  } catch (error) {
+    console.error("Error showing main menu:", error)
+    await bot.sendMessage(chatId, welcomeMessage, {
+      parse_mode: "Markdown",
+      reply_markup: keyboard,
+    })
+  }\
 }
