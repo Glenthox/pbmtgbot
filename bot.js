@@ -12,22 +12,6 @@ const PAYSTACK_PUBLIC_KEY = process.env.PAYSTACK_PUBLIC_KEY
 const FOSTER_API_KEY = process.env.FOSTER_API_KEY
 const FOSTER_BASE_URL = "https://agent.jaybartservices.com/api/v1"
 
-// Admin configuration
-const ADMIN_USERNAME = "glenthox"
-const DEFAULT_WELCOME_MESSAGE = `<b>WELCOME TO PBM HUB GHANA</b>
-
-THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA.
-
-FEATURES:
-💰 WALLET SYSTEM
-📱 MTN, TELECEL, AND AIRTELTIGO PACKAGES
-🔒 SECURE PAYMENTS
-⚡ FASTER DELIVERY
-🕐 24/7 SERVICE
-💎 BEST RATES
-
-SELECT YOUR NETWORK TO BEGIN.`
-
 // Firebase Realtime Database config
 const FIREBASE_URL = "https://crudapp-c51d3-default-rtdb.asia-southeast1.firebasedatabase.app/"
 
@@ -498,95 +482,54 @@ function isValidGhanaNumber(phone) {
   return /^(0|233|\+233)[2-9]\d{8}$/.test(phone)
 }
 
-// Admin command to set welcome message
-bot.onText(/\/setwelcome (.+)/, async (msg, match) => {
-  const chatId = msg.chat.id;
-  const username = msg.from.username;
+// Admin functions
+const ADMIN_USERNAME = "glenthox"
 
-  if (username !== ADMIN_USERNAME) {
-    bot.sendMessage(chatId, "❌ This command is only available to administrators.");
-    return;
-  }
+function isAdmin(username) {
+  return username === ADMIN_USERNAME
+}
 
-  const newWelcomeMessage = match[1];
+async function sendAnnouncementToAllUsers(message, fromChatId) {
   try {
-    await firebaseSet('settings/welcome_message', newWelcomeMessage);
-    bot.sendMessage(chatId, "✅ Welcome message updated successfully!");
+    // Get all users from Firebase
+    const usersData = await firebaseGet("users")
+    if (!usersData) return 0
+
+    let successCount = 0
+    let failCount = 0
+
+    for (const userId in usersData) {
+      try {
+        await bot.sendMessage(userId, 
+          `📢 *ANNOUNCEMENT*\n\n${message}`, 
+          { parse_mode: "Markdown" }
+        )
+        successCount++
+      } catch (error) {
+        console.error(`Failed to send announcement to ${userId}:`, error)
+        failCount++
+      }
+      // Add a small delay to avoid hitting rate limits
+      await new Promise(resolve => setTimeout(resolve, 50))
+    }
+
+    // Send summary to admin
+    await bot.sendMessage(fromChatId, 
+      `📊 *Announcement Delivery Report*\n\n` +
+      `✅ Successfully sent: ${successCount}\n` +
+      `❌ Failed: ${failCount}\n` +
+      `📩 Total users: ${Object.keys(usersData).length}`,
+      { parse_mode: "Markdown" }
+    )
+
+    return successCount
   } catch (error) {
-    console.error("Error setting welcome message:", error);
-    bot.sendMessage(chatId, "❌ Failed to update welcome message. Please try again.");
+    console.error("Error sending announcement:", error)
+    throw error
   }
-});
+}
 
-// Admin command to reset welcome message to default
-bot.onText(/\/resetwelcome/, async (msg) => {
-  const chatId = msg.chat.id;
-  const username = msg.from.username;
-
-  if (username !== ADMIN_USERNAME) {
-    bot.sendMessage(chatId, "❌ This command is only available to administrators.");
-    return;
-  }
-
-  try {
-    await firebaseSet('settings/welcome_message', DEFAULT_WELCOME_MESSAGE);
-    bot.sendMessage(chatId, "✅ Welcome message reset to default!");
-  } catch (error) {
-    console.error("Error resetting welcome message:", error);
-    bot.sendMessage(chatId, "❌ Failed to reset welcome message. Please try again.");
-  }
-});
-
-// Admin command to view current welcome message
-bot.onText(/\/viewwelcome/, async (msg) => {
-  const chatId = msg.chat.id;
-  const username = msg.from.username;
-
-  if (username !== ADMIN_USERNAME) {
-    bot.sendMessage(chatId, "❌ This command is only available to administrators.");
-    return;
-  }
-
-  try {
-    const welcomeMessage = await firebaseGet('settings/welcome_message') || DEFAULT_WELCOME_MESSAGE;
-    bot.sendMessage(chatId, 
-      `*CURRENT WELCOME MESSAGE:*\n\n${welcomeMessage}\n\n` +
-      `To change it, use:\n/setwelcome <your message>`,
-      { parse_mode: "HTML" }
-    );
-  } catch (error) {
-    console.error("Error getting welcome message:", error);
-    bot.sendMessage(chatId, "❌ Failed to get welcome message. Please try again.");
-  }
-});
-
-// Admin help command
-bot.onText(/\/adminhelp/, async (msg) => {
-  const chatId = msg.chat.id;
-  const username = msg.from.username;
-
-  if (username !== ADMIN_USERNAME) {
-    bot.sendMessage(chatId, "❌ This command is only available to administrators.");
-    return;
-  }
-
-  const adminHelp = `🔧 *ADMIN COMMANDS*
-
-/setwelcome <message> - Set a new welcome message
-/resetwelcome - Reset welcome message to default
-/viewwelcome - View current welcome message
-
-*Formatting Tips:*
-• Use HTML formatting (<b>bold</b>, <i>italic</i>)
-• Use emojis to make it attractive
-• Include line breaks with \\n
-
-*Note:* Only @${ADMIN_USERNAME} can use these commands.`;
-
-  bot.sendMessage(chatId, adminHelp, { parse_mode: "Markdown" });
-});
-
-// Modified start command to use dynamic welcome message
+// Bot command handlers
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id
   const user = msg.from
@@ -610,29 +553,55 @@ bot.onText(/\/start/, async (msg) => {
     console.error("Error checking/creating user profile:", error)
   }
 
-  // Get welcome message from settings or use default
-  const welcomeMessage = await firebaseGet('settings/welcome_message') || DEFAULT_WELCOME_MESSAGE;
+  const welcomeMessage = `<b>WELCOME TO PBM HUB GHANA</b>
+
+THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA.
+
+FEATURES:
+💰 WALLET SYSTEM
+📱 MTN, TELECEL, AND AIRTELTIGO PACKAGES
+🔒 SECURE PAYMENTS
+⚡ FASTER DELIVERY
+🕐 24/7 SERVICE
+💎 BEST RATES
+
+SELECT YOUR NETWORK TO BEGIN.`
+
+  // Base keyboard for all users
+  const baseKeyboard = [
+    [
+      { text: "MTN", callback_data: "network_mtn" },
+      { text: "TELECEL", callback_data: "network_telecel" },
+      { text: "AIRTELTIGO", callback_data: "network_airteltigo" }
+    ],
+    [
+      { text: "💰 WALLET", callback_data: "wallet_menu" },
+      { text: "📋 MY ORDERS", callback_data: "my_orders" },
+      { text: "� FIND ORDER", callback_data: "find_order" }
+    ],
+    [
+      { text: "👤 ACCOUNT", callback_data: "account_info" },
+      { text: "❓ HELP", callback_data: "help" },
+      { text: "🎧 SUPPORT", callback_data: "support" }
+    ]
+  ]
+
+  // Add admin button if user is admin
+  if (isAdmin(user.username)) {
+    baseKeyboard.push([
+      { text: "📢 SEND ANNOUNCEMENT", callback_data: "send_announcement" }
+    ])
+  }
+
+  // Add exit button as the last row
+  baseKeyboard.push([
+    { text: "❌ EXIT", callback_data: "exit" }
+  ])
 
   const keyboard = {
-    inline_keyboard: [
-      [
-        { text: "MTN", callback_data: "network_mtn" },
-        { text: "TELECEL", callback_data: "network_telecel" },
-        { text: "AIRTELTIGO", callback_data: "network_airteltigo" },
-      ],
-      [
-        { text: "📋 MY ORDERS", callback_data: "my_orders" },
-        { text: "💰 WALLET", callback_data: "wallet_menu" },
-        { text: "👤 ACCOUNT", callback_data: "account_info" },
-      ],
-      [
-        { text: "🔍 FIND ORDER", callback_data: "find_order" },
-        { text: "HELP", callback_data: "help" },
-        { text: "SUPPORT", callback_data: "support" },
-      ],
-      [{ text: "EXIT", callback_data: "exit" }],
-    ],
+    inline_keyboard: baseKeyboard
   }
+
   bot.sendMessage(chatId, welcomeMessage, {
     parse_mode: "Markdown",
     reply_markup: keyboard,
@@ -715,8 +684,84 @@ bot.on("callback_query", async (query) => {
     } else if (data.startsWith("pay_with_")) {
       const method = data.replace("pay_with_", "")
       await handlePaymentMethodSelection(chatId, messageId, method)
+    } else if (data.startsWith("confirm_announcement_")) {
+      if (!isAdmin(query.from.username)) {
+        await bot.editMessageText("❌ You don't have permission to send announcements.", {
+          chat_id: chatId,
+          message_id: messageId,
+          reply_markup: {
+            inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "back_to_main" }]]
+          }
+        })
+        return
+      }
+
+      const session = userSessions.get(chatId)
+      if (!session || !session.announcementText) {
+        await bot.editMessageText("❌ Announcement session expired. Please try again.", {
+          chat_id: chatId,
+          message_id: messageId,
+          reply_markup: {
+            inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "back_to_main" }]]
+          }
+        })
+        return
+      }
+
+      await bot.editMessageText("📢 Sending announcement to all users...", {
+        chat_id: chatId,
+        message_id: messageId
+      })
+
+      try {
+        await sendAnnouncementToAllUsers(session.announcementText, chatId)
+        userSessions.delete(chatId)
+      } catch (error) {
+        await bot.editMessageText("❌ Failed to send announcement. Please try again.", {
+          chat_id: chatId,
+          message_id: messageId,
+          reply_markup: {
+            inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "back_to_main" }]]
+          }
+        })
+      }
     } else if (data === "back_to_main") {
       await showMainMenu(chatId, messageId)
+    } else if (data === "send_announcement") {
+      if (!isAdmin(query.from.username)) {
+        await bot.editMessageText("❌ You don't have permission to send announcements.", {
+          chat_id: chatId,
+          message_id: messageId,
+          reply_markup: {
+            inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "back_to_main" }]]
+          }
+        })
+        return
+      }
+
+      // Set session for announcement composition
+      userSessions.set(chatId, {
+        step: "compose_announcement"
+      })
+
+      await bot.editMessageText(
+        `📢 *COMPOSE ANNOUNCEMENT*\n\n` +
+        `Type your announcement message below.\n\n` +
+        `Your message will be sent to all registered users.\n` +
+        `You can use Markdown formatting:\n` +
+        `*bold text*\n` +
+        `_italic text_\n` +
+        `[link text](URL)\n\n` +
+        `Type /cancel to cancel.`,
+        {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: "Markdown",
+          reply_markup: {
+            inline_keyboard: [[{ text: "🏠 Cancel", callback_data: "back_to_main" }]]
+          }
+        }
+      )
     } else if (data === "exit") {
       await bot.editMessageText("👋 Thank you for using PBM Hub Ghana! See you next time.", {
         chat_id: chatId,
@@ -784,6 +829,44 @@ bot.on("message", async (msg) => {
       await handleDepositAmountInput(chatId, text)
     } else if (session.step === "find_order") {
       await handleFindOrderInput(chatId, text)
+    } else if (session.step === "compose_announcement") {
+      if (!isAdmin(msg.from.username)) {
+        bot.sendMessage(chatId, "❌ You don't have permission to send announcements.")
+        return
+      }
+
+      // Check for cancel command
+      if (text.toLowerCase() === '/cancel') {
+        userSessions.delete(chatId)
+        await showMainMenu(chatId, null)
+        return
+      }
+
+      // Show confirmation message
+      const confirmKeyboard = {
+        inline_keyboard: [
+          [
+            { text: "✅ Send", callback_data: `confirm_announcement_${Date.now()}` },
+            { text: "❌ Cancel", callback_data: "back_to_main" }
+          ]
+        ]
+      }
+
+      await bot.sendMessage(chatId,
+        `📢 *PREVIEW ANNOUNCEMENT*\n\n` +
+        `${text}\n\n` +
+        `Are you sure you want to send this announcement to all users?`,
+        {
+          parse_mode: "Markdown",
+          reply_markup: confirmKeyboard
+        }
+      )
+
+      // Store announcement text in session
+      userSessions.set(chatId, {
+        step: "confirm_announcement",
+        announcementText: text
+      })
     }
   } catch (error) {
     console.error("Message handling error:", error)
@@ -1121,7 +1204,7 @@ async function handlePackageSelection(chatId, messageId, packageId) {
 
   const serviceCharge = selectedPackage.priceGHS * 0.02;
   const totalAmount = selectedPackage.priceGHS + serviceCharge;
-  
+
   const message = `📦 *PACKAGE SELECTED*
 
 🌐 *NETWORK:* ${selectedPackage.networkName.toUpperCase()}
@@ -1131,7 +1214,7 @@ async function handlePackageSelection(chatId, messageId, packageId) {
 • Service Charge (2%): ₵${serviceCharge.toFixed(2)}
 • Total to Pay: ₵${totalAmount.toFixed(2)}
 
-ℹ️ *Note:* A 2% service charge is applied to all purchases to cover transaction costs.
+ℹ️ *Note:* A 2% service charge is applied to all transactions to cover payment processing fees.
 
 ENTER YOUR GHANA PHONE NUMBER (E.G. 0241234567 OR +233241234567):`
 
