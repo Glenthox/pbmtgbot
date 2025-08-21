@@ -5,222 +5,99 @@ const crypto = require("crypto")
 const express = require("express")
 const bodyParser = require("body-parser")
 
+// Configuration
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
 const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY
 const PAYSTACK_PUBLIC_KEY = process.env.PAYSTACK_PUBLIC_KEY
 const FOSTER_API_KEY = process.env.FOSTER_API_KEY
 const FOSTER_BASE_URL = "https://agent.jaybartservices.com/api/v1"
+
+// Firebase Realtime Database config
 const FIREBASE_URL = "https://crudapp-c51d3-default-rtdb.asia-southeast1.firebasedatabase.app/"
 
+// Firebase helpers
 async function firebaseSet(path, data) {
-  try {
-    const response = await axios.put(`${FIREBASE_URL}${path}.json`, data, {
-      timeout: 15000,
-      headers: { "Content-Type": "application/json" },
-    })
-    return response.data
-  } catch (error) {
-    console.error(`Firebase SET error for ${path}:`, error.message)
-    if (error.code === "ECONNABORTED") {
-      throw new Error("Firebase connection timeout")
-    }
-    throw error
-  }
+  return axios.put(`${FIREBASE_URL}${path}.json`, data)
 }
 
 async function firebaseUpdate(path, data) {
-  try {
-    const response = await axios.patch(`${FIREBASE_URL}${path}.json`, data, {
-      timeout: 15000,
-      headers: { "Content-Type": "application/json" },
-    })
-    return response.data
-  } catch (error) {
-    console.error(`Firebase UPDATE error for ${path}:`, error.message)
-    if (error.code === "ECONNABORTED") {
-      throw new Error("Firebase connection timeout")
-    }
-    throw error
-  }
+  return axios.patch(`${FIREBASE_URL}${path}.json`, data)
 }
 
 async function firebaseGet(path) {
-  try {
-    const response = await axios.get(`${FIREBASE_URL}${path}.json`, {
-      timeout: 15000,
-      headers: { Accept: "application/json" },
-    })
-    return response.data
-  } catch (error) {
-    console.error(`Firebase GET error for ${path}:`, error.message)
-    if (error.code === "ECONNABORTED") {
-      console.error("Firebase GET timeout for path:", path)
-    }
-    return null
-  }
+  const res = await axios.get(`${FIREBASE_URL}${path}.json`)
+  return res.data
 }
 
+// Save user profile
 async function saveUserProfile(user) {
-  try {
-    console.log(`[v0] Saving profile for user ${user.id}`)
-
-    const existingProfile = await firebaseGet(`users/${user.id}/profile`)
-    const profile = {
-      username: user.username || "unknown",
-      first_name: user.first_name || "",
-      wallet: existingProfile?.wallet || 0,
-      phone: existingProfile?.phone || "",
-      created_at: existingProfile?.created_at || new Date().toISOString(),
-      last_seen: new Date().toISOString(),
-    }
-
-    await firebaseSet(`users/${user.id}/profile`, profile)
-    console.log(`[v0] Profile saved successfully for user ${user.id}`)
-  } catch (error) {
-    console.error("[v0] Error saving user profile:", error.message)
+  const profile = {
+    username: user.username || "unknown",
+    first_name: user.first_name || "",
+    wallet: 0
   }
+  await firebaseSet(`users/${user.id}/profile`, profile)
 }
 
-async function getWalletBalance(userId) {
-  try {
-    const profile = await firebaseGet(`users/${userId}/profile`)
-    return profile?.wallet || 0
-  } catch (error) {
-    console.error("Error getting wallet balance:", error)
-    return 0
-  }
-}
-
-async function deductFromWallet(userId, amount) {
-  try {
-    const profile = await firebaseGet(`users/${userId}/profile`)
-    const currentBalance = profile?.wallet || 0
-
-    if (currentBalance < amount) {
-      return { success: false, message: "Insufficient wallet balance" }
-    }
-
-    const newBalance = currentBalance - amount
-    await firebaseUpdate(`users/${userId}/profile`, { wallet: newBalance })
-    return { success: true, newBalance }
-  } catch (error) {
-    console.error("Error deducting from wallet:", error)
-    return { success: false, message: "Error processing wallet deduction" }
-  }
-}
-
+// Update wallet balance
 async function updateWallet(userId, amount) {
-  try {
-    const profile = await firebaseGet(`users/${userId}/profile`)
-    const currentBalance = profile?.wallet || 0
-    const newBalance = currentBalance + amount
-    await firebaseUpdate(`users/${userId}/profile`, { wallet: newBalance })
-    return { success: true, newBalance }
-  } catch (error) {
-    console.error("Error updating wallet:", error)
-    return { success: false, message: "Error processing wallet update" }
-  }
+  const profile = await firebaseGet(`users/${userId}/profile`)
+  const newBalance = (profile?.wallet || 0) + amount
+  await firebaseUpdate(`users/${userId}/profile`, { wallet: newBalance })
+  return newBalance
 }
 
+// Save order
 async function saveOrder(userId, orderId, orderData) {
-  try {
-    await firebaseSet(`users/${userId}/orders/${orderId}`, orderData)
-  } catch (error) {
-    console.error("Error saving order:", error)
-  }
+  await firebaseSet(`users/${userId}/orders/${orderId}`, orderData)
 }
 
+// Save transaction
 async function saveTransaction(userId, txnId, txnData) {
-  try {
-    await firebaseSet(`users/${userId}/transactions/${txnId}`, txnData)
-  } catch (error) {
-    console.error("Error saving transaction:", error)
-  }
+  await firebaseSet(`users/${userId}/transactions/${txnId}`, txnData)
 }
 
+// Express server for webhook
 const app = express()
 app.use(bodyParser.json())
 
 const PORT = process.env.PORT || 3000
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "https://pbmtgbot.onrender.com"
 
+// Initialize bot with webhook
 const bot = new TelegramBot(BOT_TOKEN, { webHook: true })
 
+// Start Express server first, then set webhook
 app.listen(PORT, async () => {
   console.log(`🚀 Express server running on port ${PORT}`)
   try {
     await bot.setWebHook(`${WEBHOOK_URL}/bot${BOT_TOKEN}`)
     console.log(`✅ Telegram webhook set to: ${WEBHOOK_URL}/bot${BOT_TOKEN}`)
   } catch (err) {
-    console.error("❌ Failed to set Telegram webhook:", err.message)
+    console.error('❌ Failed to set Telegram webhook:', err.message)
   }
 })
 
+// Health check endpoint for Render
 app.get("/health", (req, res) => {
   res.status(200).send("OK")
 })
 
+// Telegram webhook endpoint
 app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   bot.processUpdate(req.body)
   res.status(200).send("OK")
 })
 
-app.post("/paystack/callback", async (req, res) => {
-  try {
-    console.log("[v0] Paystack callback received:", JSON.stringify(req.body, null, 2))
+// Cache for API packages
+let cachedPackages = null
+let lastFetchTime = 0
+const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
-    const { reference, status } = req.body.data || {}
-
-    if (!reference) {
-      console.error("[v0] No reference provided in callback")
-      return res.status(400).json({ error: "No reference provided" })
-    }
-
-    console.log(`[v0] Processing callback for reference: ${reference}, status: ${status}`)
-
-    const verifyRes = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
-      headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` },
-      timeout: 15000,
-    })
-
-    console.log(`[v0] Verification response for ${reference}:`, verifyRes.data.data.status)
-
-    if (verifyRes.data.data.status === "success") {
-      const paymentData = verifyRes.data.data
-      const metadata = paymentData.metadata || {}
-      const userId = metadata.chatId
-      const amount = paymentData.amount / 100
-
-      console.log(`[v0] Payment successful for user ${userId}, amount: ₵${amount}`)
-
-      // Handle wallet deposits
-      if (metadata.depositAmount) {
-        console.log(`[v0] Processing wallet deposit for user ${userId}`)
-        const walletResult = await updateWallet(userId, amount)
-        console.log(`[v0] Wallet update result:`, walletResult)
-      }
-
-      // Update transaction status
-      await firebaseUpdate(`users/${userId}/transactions/${reference}`, {
-        status: "success",
-        verified_at: new Date().toISOString(),
-        callback_processed: true,
-      })
-
-      console.log(`[v0] Payment callback processed successfully: ${reference}`)
-    } else {
-      console.log(`[v0] Payment not successful for ${reference}, status: ${verifyRes.data.data.status}`)
-    }
-
-    res.status(200).json({ status: "success" })
-  } catch (error) {
-    console.error("[v0] Paystack callback error:", error.message)
-    res.status(500).json({ error: "Callback processing failed" })
-  }
-})
-
+// User sessions storage
 const userSessions = new Map()
 
+// Foster Console API helper functions
 async function makeAPIRequest(endpoint, method = "GET", data = null) {
   try {
     const config = {
@@ -279,11 +156,7 @@ function generateReference() {
   return "DATA_" + crypto.randomBytes(8).toString("hex").toUpperCase()
 }
 
-function escapeMarkdown(text) {
-  if (!text) return ""
-  return text.toString().replace(/[_*[\]()~`>#+=|{}.!-\\]/g, "\\$&")
-}
-
+// Hardcoded data packages
 const DATA_PACKAGES = {
   mtn: {
     name: "MTN Ghana",
@@ -347,114 +220,44 @@ function getDataPackages() {
   return DATA_PACKAGES
 }
 
-bot.onText(/\/start/, async (msg) => {
+// Bot command handlers
+bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id
-  const user = msg.from
-
-  try {
-    await saveUserProfile(user)
-  } catch (error) {
-    console.error("Error saving user profile:", error)
-  }
-
   const welcomeMessage = `*WELCOME TO PBM HUB GHANA*
 
-THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA\\.
+THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA.
 
 FEATURES:
-• MTN, TELECEL, AND AIRTELTIGO PACKAGES
-• SECURE PAYMENTS
-• WALLET SYSTEM
-• FASTER DELIVERY
-• 24/7 SERVICE
-• BEST RATES
+MTN, TELECEL, AND AIRTELTIGO PACKAGES
+SECURE PAYMENTS
+FASTER DELIVERY
+24/7 SERVICE
+BEST RATES
 
-SELECT YOUR NETWORK TO BEGIN\\.`
-
+SELECT YOUR NETWORK TO BEGIN.`
   const keyboard = {
     inline_keyboard: [
       [
         { text: "MTN", callback_data: "network_mtn" },
-        { text: "TELECEL", callback_data: "network_telecel" },
+        { text: "TELECEL", callback_data: "network_telecel" }
       ],
       [
         { text: "AIRTELTIGO", callback_data: "network_airteltigo" },
-        { text: "💰 MY WALLET", callback_data: "my_wallet" },
+        { text: "HELP", callback_data: "help" }
       ],
       [
-        { text: "📋 MY ORDERS", callback_data: "my_orders" },
-        { text: "👤 ACCOUNT INFO", callback_data: "account_info" },
-      ],
-      [
-        { text: "HELP", callback_data: "help" },
         { text: "SUPPORT", callback_data: "support" },
-      ],
-      [{ text: "EXIT", callback_data: "exit" }],
-    ],
+        { text: "EXIT", callback_data: "exit" }
+      ]
+    ]
   }
-
   bot.sendMessage(chatId, welcomeMessage, {
-    parse_mode: "MarkdownV2",
+    parse_mode: "Markdown",
     reply_markup: keyboard,
   })
 })
 
-async function handleNetworkSelection(chatId, messageId, network) {
-  const dataPackages = getDataPackages()
-  const selectedNetwork = Object.values(dataPackages).find((net) =>
-    net.name.toLowerCase().includes(network.toLowerCase()),
-  )
-
-  if (!selectedNetwork) {
-    await bot.editMessageText("❌ Network not found\\. Please try again\\.", {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "MarkdownV2",
-    })
-    return
-  }
-
-  const packages = selectedNetwork.packages
-  if (!packages || packages.length === 0) {
-    await bot.editMessageText("❌ No packages available for this network\\.", {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "MarkdownV2",
-    })
-    return
-  }
-
-  const message = `*${escapeMarkdown(selectedNetwork.name.toUpperCase())} DATA BUNDLES*
-
-SELECT A DATA BUNDLE TO PURCHASE:`
-
-  const keyboard = { inline_keyboard: [] }
-
-  for (let i = 0; i < packages.length; i += 2) {
-    const row = []
-    row.push({
-      text: `${packages[i].volumeGB}GB - ₵${packages[i].priceGHS.toFixed(2)}`,
-      callback_data: `package_${packages[i].id}`,
-    })
-    if (i + 1 < packages.length) {
-      row.push({
-        text: `${packages[i + 1].volumeGB}GB - ₵${packages[i + 1].priceGHS.toFixed(2)}`,
-        callback_data: `package_${packages[i + 1].id}`,
-      })
-    }
-    keyboard.inline_keyboard.push(row)
-  }
-
-  keyboard.inline_keyboard.push([{ text: "BACK", callback_data: "back_to_networks" }])
-
-  await bot.editMessageText(message, {
-    chat_id: chatId,
-    message_id: messageId,
-    parse_mode: "MarkdownV2",
-    reply_markup: keyboard,
-  })
-}
-
+// Network selection handler
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id
   const messageId = query.message.message_id
@@ -462,7 +265,7 @@ bot.on("callback_query", async (query) => {
 
   try {
     if (data.startsWith("network_")) {
-      const network = data.replace("network_", "")
+      const network = data.replace("network_", "") // Improved string parsing
       await handleNetworkSelection(chatId, messageId, network)
     } else if (data.startsWith("package_")) {
       const packageId = data.replace("package_", "")
@@ -476,21 +279,6 @@ bot.on("callback_query", async (query) => {
     } else if (data.startsWith("confirm_")) {
       const reference = data.split("_")[1]
       await handlePaymentConfirmation(chatId, messageId, reference)
-    } else if (data === "my_orders") {
-      await showMyOrders(chatId, messageId, 5)
-    } else if (data === "show_more_orders") {
-      await showMyOrders(chatId, messageId, 15)
-    } else if (data === "my_wallet") {
-      await showWallet(chatId, messageId)
-    } else if (data === "deposit_wallet") {
-      await initiateWalletDeposit(chatId, messageId)
-    } else if (data === "account_info") {
-      await showAccountInfo(chatId, messageId)
-    } else if (data.startsWith("pay_method_")) {
-      const method = data.replace("pay_method_", "")
-      await handlePaymentMethodSelection(chatId, messageId, method)
-    } else if (data === "back_to_main") {
-      await showMainMenu(chatId, messageId)
     }
 
     try {
@@ -508,405 +296,48 @@ bot.on("callback_query", async (query) => {
   }
 })
 
-async function getLastOrders(userId, limit = 5) {
+async function handleNetworkSelection(chatId, messageId, network) {
   try {
-    console.log(`[v0] Fetching orders for user ${userId}, limit: ${limit}`)
-
-    const actualUserId = userId.toString()
-    const orders = await firebaseGet(`users/${actualUserId}/orders`)
-
-    console.log(`[v0] Raw orders data for user ${actualUserId}:`, orders ? "Found data" : "No data")
-
-    if (!orders || typeof orders !== "object") {
-      console.log(`[v0] No orders found for user ${actualUserId}`)
-      return []
-    }
-
-    const ordersArray = Object.entries(orders)
-      .filter(([orderId, orderData]) => orderData && typeof orderData === "object")
-      .map(([orderId, orderData]) => ({
-        id: orderId,
-        ...orderData,
-      }))
-
-    console.log(`[v0] Processed ${ordersArray.length} orders for user ${actualUserId}`)
-
-    const sortedOrders = ordersArray
-      .sort((a, b) => {
-        const dateA = new Date(a.timestamp || 0).getTime()
-        const dateB = new Date(b.timestamp || 0).getTime()
-        return dateB - dateA
-      })
-      .slice(0, limit)
-
-    console.log(`[v0] Returning ${sortedOrders.length} sorted orders`)
-    return sortedOrders
-  } catch (error) {
-    console.error("[v0] Error fetching orders:", error.message)
-    return []
-  }
-}
-
-async function showMyOrders(chatId, messageId, limit = 5) {
-  try {
-    console.log(`[v0] Showing orders for chat ${chatId}, limit: ${limit}`)
-
-    await bot.editMessageText("🔍 Loading your order history\\.\\.\\.", {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "MarkdownV2",
-    })
-
-    const userId = chatId
-    const orders = await getLastOrders(userId, limit)
-
-    console.log(`[v0] Retrieved ${orders.length} orders for display`)
-
-    if (orders.length === 0) {
-      const noOrdersMessage = `*📋 MY ORDERS*
-
-❌ NO ORDERS FOUND
-
-You haven't made any purchases yet\\.
-Start by selecting a network to buy your first data bundle\\!`
-
-      const keyboard = {
-        inline_keyboard: [
-          [
-            { text: "🔄 BUY DATA", callback_data: "back_to_networks" },
-            { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
-          ],
-        ],
-      }
-
-      await bot.editMessageText(noOrdersMessage, {
-        chat_id: chatId,
-        message_id: messageId,
-        parse_mode: "MarkdownV2",
-        reply_markup: keyboard,
-      })
-      return
-    }
-
-    let ordersMessage = `*📋 MY ORDERS \$$SHOWING ${Math.min(orders.length, limit)}\$$*\n\n`
-
-    orders.forEach((order, index) => {
-      try {
-        const orderDate = new Date(order.timestamp || Date.now()).toLocaleDateString("en-GB", {
-          day: "2-digit",
-          month: "2-digit",
-          year: "numeric",
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-
-        const statusEmoji = order.status === "success" ? "✅" : order.status === "pending" ? "⏳" : "❌"
-        const bundle = escapeMarkdown(order.bundle || "N/A")
-        const phone = escapeMarkdown(order.phone || "N/A")
-        const paymentMethod = escapeMarkdown((order.payment_method || "unknown").toUpperCase())
-        const status = escapeMarkdown((order.status || "unknown").toUpperCase())
-        const orderId = escapeMarkdown((order.id || "N/A").substring(0, 12))
-
-        ordersMessage += `${index + 1}\\. ${statusEmoji} *${bundle}* \\- ₵${(order.amount || 0).toFixed(2)}\n`
-        ordersMessage += `   📅 ${escapeMarkdown(orderDate)}\n`
-        ordersMessage += `   📱 ${phone}\n`
-        ordersMessage += `   💳 ${paymentMethod}\n`
-        ordersMessage += `   📊 ${status}\n`
-        ordersMessage += `   🔗 ${orderId}\n\n`
-      } catch (orderError) {
-        console.error(`[v0] Error formatting order ${index}:`, orderError.message)
-        ordersMessage += `${index + 1}\\. ❌ *Error displaying order*\n\n`
-      }
-    })
-
-    ordersMessage += `💡 *TIP:* Your successful orders show data bundles that were delivered to your phone\\.`
-
-    const keyboard = {
-      inline_keyboard: [
-        limit === 5 && orders.length >= 5 ? [{ text: "📄 SHOW MORE", callback_data: "show_more_orders" }] : [],
-        [
-          { text: "🔄 BUY MORE DATA", callback_data: "back_to_networks" },
-          { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
-        ],
-        [{ text: "🎧 SUPPORT", callback_data: "support" }],
-      ].filter((row) => row.length > 0),
-    }
-
-    await bot.editMessageText(ordersMessage, {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "MarkdownV2",
-      reply_markup: keyboard,
-    })
-  } catch (error) {
-    console.error("[v0] Error showing orders:", error.message)
-
-    const errorMessage = `❌ *ERROR LOADING ORDERS*
-
-Unable to fetch your order history at the moment\\.
-Please try again later or contact support if the problem persists\\.
-
-*Error:* ${escapeMarkdown(error.message || "Unknown error")}`
-
-    const keyboard = {
-      inline_keyboard: [
-        [
-          { text: "🔄 TRY AGAIN", callback_data: "my_orders" },
-          { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
-        ],
-        [{ text: "🎧 SUPPORT", callback_data: "support" }],
-      ],
-    }
-
-    try {
+    const dataPackages = getDataPackages()
+    const packages = dataPackages[network]
+    if (!packages || packages.packages.length === 0) {
+      const errorMessage = "NO PACKAGES AVAILABLE FOR THIS NETWORK. PLEASE TRY AGAIN LATER."
       await bot.editMessageText(errorMessage, {
         chat_id: chatId,
         message_id: messageId,
-        parse_mode: "MarkdownV2",
-        reply_markup: keyboard,
-      })
-    } catch (editError) {
-      console.error("[v0] Failed to edit message with error:", editError.message)
-      await bot.sendMessage(chatId, errorMessage, {
-        parse_mode: "MarkdownV2",
-        reply_markup: keyboard,
-      })
-    }
-  }
-}
-
-async function showWallet(chatId, messageId) {
-  try {
-    await bot.editMessageText("💰 Loading wallet information\\.\\.\\.", {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "MarkdownV2",
-    })
-
-    const balance = await getWalletBalance(chatId)
-    const profile = await firebaseGet(`users/${chatId}/profile`)
-
-    const firstName = escapeMarkdown(profile?.first_name || "User")
-    const username = escapeMarkdown(profile?.username || "unknown")
-
-    const walletMessage = `*💰 MY WALLET*
-
-*CURRENT BALANCE:* ₵${balance.toFixed(2)}
-
-*ACCOUNT HOLDER:* ${firstName}
-*USERNAME:* @${username}
-
-Use your wallet balance to purchase data bundles instantly without going through payment gateway each time\\.
-
-*WALLET FEATURES:*
-• Instant purchases
-• Secure balance storage
-• Transaction history
-• Quick top\\-ups`
-
-    const keyboard = {
-      inline_keyboard: [
-        [
-          { text: "💳 DEPOSIT MONEY", callback_data: "deposit_wallet" },
-          { text: "🔄 BUY DATA", callback_data: "back_to_networks" },
-        ],
-        [
-          { text: "📋 MY ORDERS", callback_data: "my_orders" },
-          { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
-        ],
-      ],
-    }
-
-    await bot.editMessageText(walletMessage, {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "MarkdownV2",
-      reply_markup: keyboard,
-    })
-  } catch (error) {
-    console.error("Error showing wallet:", error)
-    await bot.editMessageText("❌ Error loading wallet\\. Please try again\\.", {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "MarkdownV2",
-      reply_markup: {
-        inline_keyboard: [[{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }]],
-      },
-    })
-  }
-}
-
-async function showAccountInfo(chatId, messageId) {
-  try {
-    await bot.editMessageText("👤 Loading account information\\.\\.\\.", {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "MarkdownV2",
-    })
-
-    const profile = await firebaseGet(`users/${chatId}/profile`)
-    const orders = await getLastOrders(chatId, 100)
-    const successfulOrders = orders.filter((order) => order.status === "success")
-    const totalSpent = successfulOrders.reduce((sum, order) => sum + (order.amount || 0), 0)
-
-    const firstName = escapeMarkdown(profile?.first_name || "Not set")
-    const username = escapeMarkdown(profile?.username || "unknown")
-    const phone = escapeMarkdown(profile?.phone || "Not set")
-    const memberSince = escapeMarkdown(new Date(profile?.created_at || Date.now()).toLocaleDateString("en-GB"))
-
-    const accountMessage = `*👤 ACCOUNT INFORMATION*
-
-*PERSONAL DETAILS:*
-• Name: ${firstName}
-• Username: @${username}
-• User ID: ${chatId}
-• Phone: ${phone}
-
-*ACCOUNT STATISTICS:*
-• Wallet Balance: ₵${(profile?.wallet || 0).toFixed(2)}
-• Total Orders: ${orders.length}
-• Successful Orders: ${successfulOrders.length}
-• Total Spent: ₵${totalSpent.toFixed(2)}
-• Member Since: ${memberSince}
-
-*ACCOUNT STATUS:* ✅ Active`
-
-    const keyboard = {
-      inline_keyboard: [
-        [
-          { text: "💰 MY WALLET", callback_data: "my_wallet" },
-          { text: "📋 MY ORDERS", callback_data: "my_orders" },
-        ],
-        [
-          { text: "🔄 BUY DATA", callback_data: "back_to_networks" },
-          { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
-        ],
-        [{ text: "🎧 SUPPORT", callback_data: "support" }],
-      ],
-    }
-
-    await bot.editMessageText(accountMessage, {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "MarkdownV2",
-      reply_markup: keyboard,
-    })
-  } catch (error) {
-    console.error("Error showing account info:", error)
-    await bot.editMessageText("❌ Error loading account information\\. Please try again\\.", {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "MarkdownV2",
-      reply_markup: {
-        inline_keyboard: [[{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }]],
-      },
-    })
-  }
-}
-
-async function initiateWalletDeposit(chatId, messageId) {
-  const depositMessage = `*💳 WALLET DEPOSIT*
-
-Enter your deposit amount \$$₵5\\.00 \\- ₵500\\.00\$$:
-
-*EXAMPLES:*
-• Type: 10 \$$for ₵10\\.00\$$
-• Type: 25\\.50 \$$for ₵25\\.50\$$
-• Type: 100 \$$for ₵100\\.00\$$
-
-*MINIMUM:* ₵5\\.00
-*MAXIMUM:* ₵500\\.00
-
-Please type your desired amount:`
-
-  const keyboard = {
-    inline_keyboard: [
-      [
-        { text: "💰 MY WALLET", callback_data: "my_wallet" },
-        { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
-      ],
-    ],
-  }
-
-  userSessions.set(chatId, {
-    step: "deposit_amount",
-    depositInitiated: Date.now(),
-  })
-
-  await bot.editMessageText(depositMessage, {
-    chat_id: chatId,
-    message_id: messageId,
-    parse_mode: "MarkdownV2",
-    reply_markup: keyboard,
-  })
-}
-
-async function handlePaymentMethodSelection(chatId, messageId, method) {
-  const session = userSessions.get(chatId)
-  if (!session) {
-    await bot.editMessageText("❌ Session expired\\. Please start again\\.", {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "MarkdownV2",
-      reply_markup: {
-        inline_keyboard: [[{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }]],
-      },
-    })
-    return
-  }
-
-  if (method === "wallet") {
-    await processWalletPayment(chatId, messageId, session)
-  } else if (method === "paystack") {
-    await initiatePaystackPayment(chatId, session)
-  }
-}
-
-async function processWalletPayment(chatId, messageId, session) {
-  try {
-    const walletResult = await deductFromWallet(chatId, session.package.priceGHS)
-
-    if (!walletResult.success) {
-      const currentBalance = await getWalletBalance(chatId)
-      const insufficientMessage = `❌ *INSUFFICIENT WALLET BALANCE*
-
-Required: ₵${session.package.priceGHS.toFixed(2)}
-Available: ₵${currentBalance.toFixed(2)}
-
-Please deposit money to your wallet or use card payment\\.`
-
-      const keyboard = {
-        inline_keyboard: [
-          [
-            { text: "💳 DEPOSIT WALLET", callback_data: "deposit_wallet" },
-            { text: "💳 PAY WITH CARD", callback_data: "pay_method_paystack" },
-          ],
-          [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }],
-        ],
-      }
-
-      await bot.editMessageText(insufficientMessage, {
-        chat_id: chatId,
-        message_id: messageId,
-        parse_mode: "MarkdownV2",
-        reply_markup: keyboard,
       })
       return
     }
+    const message = `*${packages.name.toUpperCase()} DATA PACKAGES*
 
-    await firebaseUpdate(`users/${chatId}/profile`, { phone: session.phoneNumber })
-    await processDataBundleWithWallet(chatId, session, walletResult.newBalance)
-    userSessions.delete(chatId)
-  } catch (error) {
-    console.error("Wallet payment error:", error)
-    await bot.editMessageText("❌ Error processing wallet payment\\. Please try again\\.", {
+SELECT YOUR PREFERRED BUNDLE PACKAGE:`
+    const packageButtons = []
+    for (let i = 0; i < packages.packages.length; i += 3) {
+      packageButtons.push(
+        packages.packages.slice(i, i + 3).map((pkg) => ({
+          text: `${pkg.volumeGB}GB | ₵${pkg.priceGHS.toFixed(2)}`.toUpperCase(),
+          callback_data: `package_${pkg.id}`,
+        }))
+      )
+    }
+    const keyboard = {
+      inline_keyboard: [
+        ...packageButtons,
+        [
+          { text: "BACK", callback_data: "back_to_networks" },
+          { text: "HELP", callback_data: "help" }
+        ]
+      ]
+    }
+    await bot.editMessageText(message, {
       chat_id: chatId,
       message_id: messageId,
-      parse_mode: "MarkdownV2",
-      reply_markup: {
-        inline_keyboard: [[{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }]],
-      },
+      parse_mode: "Markdown",
+      reply_markup: keyboard,
     })
+  } catch (error) {
+    console.error("Network selection error:", error)
+    await bot.sendMessage(chatId, "❌ An error occurred. Please try /start to begin again.")
   }
 }
 
@@ -915,7 +346,6 @@ async function handlePackageSelection(chatId, messageId, packageId) {
     const dataPackages = getDataPackages()
     let selectedPackage = null
     let networkName = ""
-
     for (const [network, data] of Object.entries(dataPackages)) {
       const pkg = data.packages.find((p) => p.id == packageId)
       if (pkg) {
@@ -924,42 +354,36 @@ async function handlePackageSelection(chatId, messageId, packageId) {
         break
       }
     }
-
     if (!selectedPackage) {
-      await bot.editMessageText("PACKAGE NOT FOUND\\. PLEASE TRY AGAIN\\.", {
+      await bot.editMessageText("PACKAGE NOT FOUND. PLEASE TRY AGAIN.", {
         chat_id: chatId,
         message_id: messageId,
-        parse_mode: "MarkdownV2",
       })
       return
     }
-
     userSessions.set(chatId, {
       package: selectedPackage,
       network: networkName,
       step: "phone_input",
     })
+  const message = `*PACKAGE SELECTED*
 
-    const message = `*PACKAGE SELECTED*
-
-NETWORK: ${escapeMarkdown(networkName.toUpperCase())}
+NETWORK: ${networkName.toUpperCase()}
 PACKAGE: ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}
 
-ENTER YOUR GHANA PHONE NUMBER \$$E\\.G\\. 0241234567 OR \\+233241234567\$$:`
-
+ENTER YOUR GHANA PHONE NUMBER (E.G. 0241234567 OR +233241234567):`
     await bot.editMessageText(message, {
       chat_id: chatId,
       message_id: messageId,
-      parse_mode: "MarkdownV2",
+      parse_mode: "Markdown",
     })
   } catch (error) {
     console.error("Package selection error:", error)
-    await bot.sendMessage(chatId, "❌ An error occurred\\. Please try /start to begin again\\.", {
-      parse_mode: "MarkdownV2",
-    })
+    await bot.sendMessage(chatId, "❌ An error occurred. Please try /start to begin again.")
   }
 }
 
+// Phone number input handler
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id
   const text = msg.text
@@ -967,159 +391,40 @@ bot.on("message", async (msg) => {
   if (text && text.startsWith("/")) return
 
   const session = userSessions.get(chatId)
-  if (!session) return
+  if (!session || session.step !== "phone_input") return
 
-  if (session.step === "phone_input") {
-    if (!validatePhoneNumber(text)) {
-      bot.sendMessage(
-        chatId,
-        "❌ Invalid phone number format\\. Please enter a valid Ghana phone number $$e\\.g\\., 0241234567 or \\+233241234567$$",
-        { parse_mode: "MarkdownV2" },
-      )
-      return
-    }
-
-    const formattedPhone = formatPhoneNumber(text)
-    session.phoneNumber = formattedPhone
-    session.step = "payment_method"
-
-    await showPaymentMethodSelection(chatId, session)
-  } else if (session.step === "deposit_amount") {
-    const amount = Number.parseFloat(text)
-    if (isNaN(amount) || amount < 5 || amount > 500) {
-      bot.sendMessage(chatId, "❌ Invalid amount\\. Please enter an amount between ₵5\\.00 and ₵500\\.00", {
-        parse_mode: "MarkdownV2",
-      })
-      return
-    }
-
-    session.depositAmount = amount
-    session.step = "deposit_payment"
-    await initiateDepositPayment(chatId, session)
+  if (!validatePhoneNumber(text)) {
+    bot.sendMessage(
+      chatId,
+      "❌ Invalid phone number format. Please enter a valid Ghana phone number (e.g., 0241234567 or +233241234567)",
+    )
+    return
   }
+
+  const formattedPhone = formatPhoneNumber(text)
+  session.phoneNumber = formattedPhone
+  session.step = "payment"
+
+  await initiatePayment(chatId, session)
 })
 
-async function showPaymentMethodSelection(chatId, session) {
-  const walletBalance = await getWalletBalance(chatId)
-  const canUseWallet = walletBalance >= session.package.priceGHS
-
-  const networkName = escapeMarkdown(session.network.toUpperCase())
-  const phoneNumber = escapeMarkdown(session.phoneNumber)
-
-  const message = `*CHOOSE PAYMENT METHOD*
-
-NETWORK: ${networkName}
-PACKAGE: ${session.package.volumeGB}GB | ₵${session.package.priceGHS.toFixed(2)}
-PHONE: ${phoneNumber}
-
-*WALLET BALANCE:* ₵${walletBalance.toFixed(2)} ${canUseWallet ? "✅" : "❌"}
-
-SELECT YOUR PREFERRED PAYMENT METHOD:`
-
-  const keyboard = {
-    inline_keyboard: [
-      canUseWallet ? [{ text: "💰 PAY WITH WALLET", callback_data: "pay_method_wallet" }] : [],
-      [{ text: "💳 PAY WITH CARD/MOMO", callback_data: "pay_method_paystack" }],
-      [
-        { text: "💳 DEPOSIT WALLET", callback_data: "deposit_wallet" },
-        { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
-      ],
-    ].filter((row) => row.length > 0),
-  }
-
-  await bot.sendMessage(chatId, message, {
-    parse_mode: "MarkdownV2",
-    reply_markup: keyboard,
-  })
-}
-
-async function showMainMenu(chatId, messageId) {
-  const welcomeMessage = `*WELCOME TO PBM HUB GHANA*
-
-THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA\\.
-
-FEATURES:
-• MTN, TELECEL, AND AIRTELTIGO PACKAGES
-• SECURE PAYMENTS
-• WALLET SYSTEM
-• FASTER DELIVERY
-• 24/7 SERVICE
-• BEST RATES
-
-SELECT YOUR NETWORK TO BEGIN\\.`
-
-  const keyboard = {
-    inline_keyboard: [
-      [
-        { text: "MTN", callback_data: "network_mtn" },
-        { text: "TELECEL", callback_data: "network_telecel" },
-      ],
-      [
-        { text: "AIRTELTIGO", callback_data: "network_airteltigo" },
-        { text: "💰 MY WALLET", callback_data: "my_wallet" },
-      ],
-      [
-        { text: "📋 MY ORDERS", callback_data: "my_orders" },
-        { text: "👤 ACCOUNT INFO", callback_data: "account_info" },
-      ],
-      [
-        { text: "HELP", callback_data: "help" },
-        { text: "SUPPORT", callback_data: "support" },
-      ],
-      [{ text: "EXIT", callback_data: "exit" }],
-    ],
-  }
-
-  try {
-    await bot.editMessageText(welcomeMessage, {
-      chat_id: chatId,
-      message_id: messageId,
-      parse_mode: "MarkdownV2",
-      reply_markup: keyboard,
-    })
-  } catch (error) {
-    console.error("Error showing main menu:", error)
-    await bot.sendMessage(chatId, welcomeMessage, {
-      parse_mode: "MarkdownV2",
-      reply_markup: keyboard,
-    })
-  }
-}
-
-async function initiatePaystackPayment(chatId, session) {
+async function initiatePayment(chatId, session) {
   try {
     const reference = generateReference()
-    let amount, email, metadata
-
-    if (session.package) {
-      amount = Math.round(session.package.priceGHS * 100)
-      email = `user${chatId}@pbmhub.com`
-      metadata = {
+    const amount = Math.round(session.package.priceGHS * 100)
+    const paymentData = {
+      email: `user${chatId}@pbmhub.com`,
+      amount: amount,
+      reference: reference,
+      currency: "GHS",
+      callback_url: `${WEBHOOK_URL}/verify.html?reference=${reference}`,
+      metadata: {
         chatId: chatId,
         phoneNumber: session.phoneNumber,
         packageId: session.package.id,
         network: session.network,
-      }
-    } else if (session.depositAmount) {
-      amount = Math.round(session.depositAmount * 100)
-      email = `user${chatId}@pbmhub.com`
-      metadata = {
-        chatId: chatId,
-        depositAmount: session.depositAmount,
-      }
-    } else {
-      throw new Error("Invalid session data")
+      },
     }
-
-    const paymentData = {
-      email: email,
-      amount: amount,
-      reference: reference,
-      currency: "GHS",
-      callback_url: `${WEBHOOK_URL}/paystack/callback`,
-      metadata: metadata,
-    }
-
     const response = await axios.post("https://api.paystack.co/transaction/initialize", paymentData, {
       headers: {
         Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
@@ -1127,79 +432,55 @@ async function initiatePaystackPayment(chatId, session) {
       },
       timeout: 15000,
     })
-
     if (response.data.status) {
       const paymentUrl = response.data.data.authorization_url
       session.reference = reference
       session.paymentInitiated = Date.now()
       userSessions.set(chatId, session)
 
+      // Log order and transaction in Firebase (pending)
       const userId = chatId
       const orderId = reference
-
-      if (session.package) {
-        const orderData = {
-          bundle: `${session.package.volumeGB}GB`,
-          amount: session.package.priceGHS,
-          payment_method: "paystack",
-          status: "pending",
-          timestamp: new Date().toISOString(),
-          phone: session.phoneNumber,
-        }
-        await saveOrder(userId, orderId, orderData)
+      const orderData = {
+        bundle: `${session.package.volumeGB}GB`,
+        amount: session.package.priceGHS,
+        payment_method: "paystack",
+        status: "pending",
+        timestamp: new Date().toISOString()
       }
-
+      await saveOrder(userId, orderId, orderData)
       const txnData = {
-        type: session.package ? "purchase" : "deposit",
-        amount: session.package ? session.package.priceGHS : session.depositAmount,
+        type: "deposit",
+        amount: session.package.priceGHS,
         payment_method: "paystack",
         status: "pending",
         reference: reference,
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       }
       await saveTransaction(userId, reference, txnData)
 
-      let message
-      if (session.package) {
-        const networkName = escapeMarkdown(session.network.toUpperCase())
-        const phoneNumber = escapeMarkdown(session.phoneNumber)
-        const referenceEscaped = escapeMarkdown(reference)
+      const message = `*PAYMENT DETAILS*
 
-        message = `*PAYMENT DETAILS*
-
-NETWORK: ${networkName}
+NETWORK: ${session.network.toUpperCase()}
 PACKAGE: ${session.package.volumeGB}GB | ₵${session.package.priceGHS.toFixed(2)}
-PHONE: ${phoneNumber}
+PHONE: ${session.phoneNumber}
 AMOUNT: ₵${session.package.priceGHS.toFixed(2)}
-REFERENCE: ${referenceEscaped}
+REFERENCE: ${reference}
 
 SELECT AN OPTION BELOW TO CONTINUE:`
-      } else {
-        const referenceEscaped = escapeMarkdown(reference)
-
-        message = `*DEPOSIT PAYMENT DETAILS*
-
-AMOUNT: ₵${session.depositAmount.toFixed(2)}
-REFERENCE: ${referenceEscaped}
-
-SELECT AN OPTION BELOW TO CONTINUE:`
-      }
-
       const keyboard = {
         inline_keyboard: [
           [
             { text: "PAY", url: paymentUrl },
-            { text: "I PAID", callback_data: `confirm_${reference}` },
+            { text: "I PAID", callback_data: `confirm_${reference}` }
           ],
           [
-            { text: "CANCEL", callback_data: session.package ? "back_to_networks" : "my_wallet" },
-            { text: "HELP", callback_data: "help" },
-          ],
-        ],
+            { text: "CANCEL", callback_data: "back_to_networks" },
+            { text: "HELP", callback_data: "help" }
+          ]
+        ]
       }
-
       await bot.sendMessage(chatId, message, {
-        parse_mode: "MarkdownV2",
         reply_markup: keyboard,
       })
     } else {
@@ -1208,39 +489,30 @@ SELECT AN OPTION BELOW TO CONTINUE:`
   } catch (error) {
     console.error("Payment initialization error:", error)
 
-    let errorMessage = "❌ Failed to initialize payment: "
-
-    if (error.response && error.response.status === 401) {
-      errorMessage += "Paystack key is INVALID\\. Please check your \\.env file\\."
-    } else if (error.code === "ETIMEDOUT") {
-      errorMessage += "Network timeout: Unable to reach Paystack API\\. Check your internet connection\\."
-    } else {
-      errorMessage += escapeMarkdown(error.message || "Unknown error")
-    }
-
     try {
-      await bot.sendMessage(chatId, errorMessage, { parse_mode: "MarkdownV2" })
+      if (error.response && error.response.status === 401) {
+        await bot.sendMessage(chatId, "❌ Paystack key is INVALID. Please check your .env file.")
+      } else if (error.code === "ETIMEDOUT") {
+        await bot.sendMessage(
+          chatId,
+          "❌ Network timeout: Unable to reach Paystack API. Check your internet connection.",
+        )
+      } else {
+        await bot.sendMessage(chatId, `❌ Failed to initialize payment: ${error.message}`)
+      }
     } catch (botError) {
       console.error("Failed to send error message:", botError)
     }
   }
 }
 
-async function initiateDepositPayment(chatId, session) {
-  await initiatePaystackPayment(chatId, session)
-}
-
 async function handlePaymentConfirmation(chatId, messageId, reference) {
   try {
-    console.log(`[v0] Handling payment confirmation for reference: ${reference}`)
-
     const session = userSessions.get(chatId)
     if (!session || !session.reference) {
-      console.log(`[v0] No session found for chat ${chatId}`)
-      await bot.editMessageText("❌ Session expired\\. Please start a new purchase\\.", {
+      await bot.editMessageText("❌ Session expired. Please start a new purchase.", {
         chat_id: chatId,
         message_id: messageId,
-        parse_mode: "MarkdownV2",
         reply_markup: {
           inline_keyboard: [[{ text: "🔄 Start Over", callback_data: "back_to_networks" }]],
         },
@@ -1249,41 +521,27 @@ async function handlePaymentConfirmation(chatId, messageId, reference) {
     }
 
     const actualReference = session.reference
-    console.log(`[v0] Verifying payment for reference: ${actualReference}`)
 
-    await bot.editMessageText("🔍 Verifying your payment\\.\\.\\. Please wait\\.", {
+    await bot.editMessageText("🔍 Verifying your payment... Please wait.", {
       chat_id: chatId,
       message_id: messageId,
-      parse_mode: "MarkdownV2",
     })
 
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${actualReference}`, {
       headers: {
         Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
       },
-      timeout: 20000,
+      timeout: 15000,
     })
-
-    console.log(`[v0] Paystack verification response:`, response.data.data.status)
 
     if (response.data.status && response.data.data.status === "success") {
       const paymentData = response.data.data
-      let expectedAmount
-
-      if (session.package) {
-        expectedAmount = Math.round(session.package.priceGHS * 100)
-      } else if (session.depositAmount) {
-        expectedAmount = Math.round(session.depositAmount * 100)
-      }
-
-      console.log(`[v0] Expected amount: ${expectedAmount}, Actual amount: ${paymentData.amount}`)
+      const expectedAmount = Math.round(session.package.priceGHS * 100)
 
       if (paymentData.amount !== expectedAmount) {
-        console.error(`[v0] Payment amount mismatch for ${actualReference}`)
-        await bot.editMessageText("❌ Payment amount mismatch\\. Please contact support\\.", {
+        await bot.editMessageText("❌ Payment amount mismatch. Please contact support.", {
           chat_id: chatId,
           message_id: messageId,
-          parse_mode: "MarkdownV2",
           reply_markup: {
             inline_keyboard: [[{ text: "🎧 Contact Support", callback_data: "support" }]],
           },
@@ -1291,69 +549,35 @@ async function handlePaymentConfirmation(chatId, messageId, reference) {
         return
       }
 
-      // Update transaction status
+      // Log transaction in Firebase
       const userId = chatId
       const txnId = paymentData.reference || reference
       const txnData = {
-        type: session.package ? "purchase" : "deposit",
+        type: "deposit",
         amount: paymentData.amount / 100,
         payment_method: "paystack",
         status: "success",
         reference: paymentData.reference,
-        timestamp: new Date().toISOString(),
-        verified_manually: true,
+        timestamp: new Date().toISOString()
       }
       await saveTransaction(userId, txnId, txnData)
+      // Update wallet balance
+      await updateWallet(userId, paymentData.amount / 100)
+      // Send receipt message
+      await bot.sendMessage(chatId, "✅ Payment Successful. Please go back to the bot to proceed.")
 
-      if (session.package) {
-        console.log(`[v0] Processing data bundle for package purchase`)
-        await processDataBundle(chatId, session)
-        userSessions.delete(chatId)
-      } else if (session.depositAmount) {
-        console.log(`[v0] Processing wallet deposit`)
-        const walletResult = await updateWallet(userId, paymentData.amount / 100)
-        const newBalance = await getWalletBalance(chatId)
-
-        const depositAmount = paymentData.amount / 100
-        const successMessage = `✅ *WALLET DEPOSIT SUCCESSFUL*
-
-You have successfully deposited ₵${depositAmount.toFixed(2)} into your wallet\\.
-
-Your new wallet balance is ₵${newBalance.toFixed(2)}`
-
-        const keyboard = {
-          inline_keyboard: [
-            [
-              { text: "💰 MY WALLET", callback_data: "my_wallet" },
-              { text: "🔄 BUY DATA", callback_data: "back_to_networks" },
-            ],
-            [
-              { text: "📋 MY ORDERS", callback_data: "my_orders" },
-              { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
-            ],
-          ],
-        }
-
-        await bot.editMessageText(successMessage, {
-          chat_id: chatId,
-          message_id: messageId,
-          parse_mode: "MarkdownV2",
-          reply_markup: keyboard,
-        })
-        userSessions.delete(chatId)
-      }
+      await processDataBundle(chatId, session)
+      userSessions.delete(chatId)
     } else {
       const paymentStatus = response.data.data?.status || "unknown"
-      console.log(`[v0] Payment not successful, status: ${paymentStatus}`)
-
       let statusMessage = ""
 
       if (paymentStatus === "pending") {
-        statusMessage = "⏳ Payment is still pending\\. Please wait a moment and try again\\."
+        statusMessage = "⏳ Payment is still pending. Please wait a moment and try again."
       } else if (paymentStatus === "failed") {
-        statusMessage = "❌ Payment failed\\. Please try making a new payment\\."
+        statusMessage = "❌ Payment failed. Please try making a new payment."
       } else {
-        statusMessage = "❌ Payment not confirmed yet\\. Please complete your payment first\\."
+        statusMessage = "❌ Payment not confirmed yet. Please complete your payment first."
       }
 
       const keyboard = {
@@ -1367,23 +591,22 @@ Your new wallet balance is ₵${newBalance.toFixed(2)}`
       await bot.editMessageText(statusMessage, {
         chat_id: chatId,
         message_id: messageId,
-        parse_mode: "MarkdownV2",
         reply_markup: keyboard,
       })
     }
   } catch (error) {
-    console.error("[v0] Payment verification error:", error.message)
+    console.error("Payment verification error:", error)
 
-    let errorMessage = "❌ Unable to verify payment\\. "
+    let errorMessage = "❌ Unable to verify payment. "
 
     if (error.response?.status === 404) {
-      errorMessage += "Transaction not found\\. Please ensure you completed the payment\\."
+      errorMessage += "Transaction not found. Please ensure you completed the payment."
     } else if (error.response?.status === 401) {
-      errorMessage += "Authentication error\\. Please contact support\\."
-    } else if (error.code === "ETIMEDOUT" || error.code === "ECONNABORTED") {
-      errorMessage += "Verification timeout\\. Please try again\\."
+      errorMessage += "Authentication error. Please contact support."
+    } else if (error.code === "ETIMEDOUT") {
+      errorMessage += "Verification timeout. Please try again."
     } else {
-      errorMessage += "Please try again or contact support\\."
+      errorMessage += "Please try again or contact support."
     }
 
     const keyboard = {
@@ -1398,34 +621,28 @@ Your new wallet balance is ₵${newBalance.toFixed(2)}`
       await bot.editMessageText(errorMessage, {
         chat_id: chatId,
         message_id: messageId,
-        parse_mode: "MarkdownV2",
         reply_markup: keyboard,
       })
     } catch (editError) {
-      console.error("[v0] Failed to edit message:", editError.message)
-      await bot.sendMessage(chatId, errorMessage, {
-        parse_mode: "MarkdownV2",
-        reply_markup: keyboard,
-      })
+      console.error("Failed to edit message:", editError)
+      // Send new message if edit fails
+      await bot.sendMessage(chatId, errorMessage, { reply_markup: keyboard })
     }
   }
 }
 
-async function processDataBundleWithWallet(chatId, session, newBalance) {
-  const networkName = escapeMarkdown(session.network)
-  const phoneNumber = escapeMarkdown(session.phoneNumber)
+async function processDataBundle(chatId, session) {
+  const processingMessage = `⏳ PROCESSING YOUR DATA BUNDLE...
 
-  const processingMessage = `⏳ PROCESSING YOUR DATA BUNDLE\\.\\.\\.
+NETWORK: ${session.network}
+PACKAGE: ${session.package.volumeGB}GB - ₵${session.package.priceGHS.toFixed(2)}
+PHONE: ${session.phoneNumber}
 
-NETWORK: ${networkName}
-PACKAGE: ${session.package.volumeGB}GB \\- ₵${session.package.priceGHS.toFixed(2)}
-PHONE: ${phoneNumber}
-
-PLEASE RELAX WHILE WE PROCESS YOUR REQUEST\\.\\.\\.`
+PLEASE RELAX WHILE WE PROCESS YOUR REQUEST...`
 
   let processingMsg
   try {
-    processingMsg = await bot.sendMessage(chatId, processingMessage, { parse_mode: "MarkdownV2" })
+    processingMsg = await bot.sendMessage(chatId, processingMessage)
   } catch (error) {
     console.error("Failed to send processing message:", error)
     return
@@ -1434,20 +651,18 @@ PLEASE RELAX WHILE WE PROCESS YOUR REQUEST\\.\\.\\.`
   try {
     const result = await purchaseDataBundle(session.phoneNumber, session.package.network_id, session.package.volume)
 
+    // Handle Foster Console API response format
     if (result.success === true) {
-      const transactionCode = escapeMarkdown(result.transaction_code || "N/A")
+      const successMessage = `BUNDLE PROCESSED SUCCESSFULLY
 
-      const successMessage = `✅ BUNDLE PROCESSED SUCCESSFULLY
+NETWORK: ${session.network}
+PACKAGE: ${session.package.volumeGB}GB - ₵${session.package.priceGHS.toFixed(2)}
+PHONE: ${session.phoneNumber}
+TRANSACTION ID: ${result.transaction_code}
 
-NETWORK: ${networkName}
-PACKAGE: ${session.package.volumeGB}GB \\- ₵${session.package.priceGHS.toFixed(2)}
-PHONE: ${phoneNumber}
-TRANSACTION ID: ${transactionCode}
+THANK YOU FOR USING PBM HUB GHANA!`
 
-THANK YOU FOR USING PBM HUB GHANA\\!
-
-Your new wallet balance is ₵${newBalance.toFixed(2)}`
-
+      // Log order and transaction in Firebase
       const userId = chatId
       const orderId = result.transaction_code || Date.now()
       const orderData = {
@@ -1455,18 +670,16 @@ Your new wallet balance is ₵${newBalance.toFixed(2)}`
         amount: session.package.priceGHS,
         payment_method: "wallet",
         status: "success",
-        timestamp: new Date().toISOString(),
-        phone: session.phoneNumber,
+        timestamp: new Date().toISOString()
       }
       await saveOrder(userId, orderId, orderData)
-
       const txnData = {
         type: "purchase",
         amount: session.package.priceGHS,
         payment_method: "wallet",
         status: "success",
         reference: result.transaction_code || "wallet",
-        timestamp: new Date().toISOString(),
+        timestamp: new Date().toISOString()
       }
       await saveTransaction(userId, orderId, txnData)
 
@@ -1477,7 +690,6 @@ Your new wallet balance is ₵${newBalance.toFixed(2)}`
       await bot.editMessageText(successMessage, {
         chat_id: chatId,
         message_id: processingMsg.message_id,
-        parse_mode: "MarkdownV2",
         reply_markup: keyboard,
       })
     } else {
@@ -1486,21 +698,22 @@ Your new wallet balance is ₵${newBalance.toFixed(2)}`
   } catch (error) {
     console.error("Data bundle purchase failed:", error)
 
-    let errorMessage = "❌ Failed to activate data bundle\\. "
+    let errorMessage = "❌ Failed to activate data bundle. "
 
+    // Handle specific Foster Console API error codes
     if (error.response?.status === 400) {
       const responseData = error.response.data
       if (responseData.message === "Insufficient balance.") {
-        errorMessage += "Insufficient balance in Foster Console\\."
+        errorMessage += "Insufficient balance in Foster Console."
       } else {
-        errorMessage += "Invalid request or insufficient balance\\."
+        errorMessage += "Invalid request or insufficient balance."
       }
     } else if (error.response?.status === 404) {
-      errorMessage += "Package not found or out of stock\\."
+      errorMessage += "Package not found or out of stock."
     } else if (error.response?.status === 403) {
-      errorMessage += "Access denied for this network transaction\\."
+      errorMessage += "Access denied for this network transaction."
     } else {
-      errorMessage += "Please contact support for assistance\\."
+      errorMessage += "Please contact support for assistance."
     }
 
     const keyboard = {
@@ -1514,129 +727,11 @@ Your new wallet balance is ₵${newBalance.toFixed(2)}`
       await bot.editMessageText(errorMessage, {
         chat_id: chatId,
         message_id: processingMsg.message_id,
-        parse_mode: "MarkdownV2",
         reply_markup: keyboard,
       })
     } catch (editError) {
       console.error("Failed to edit message:", editError)
-      await bot.sendMessage(chatId, errorMessage, {
-        parse_mode: "MarkdownV2",
-        reply_markup: keyboard,
-      })
-    }
-  }
-}
-
-async function processDataBundle(chatId, session) {
-  const networkName = escapeMarkdown(session.network)
-  const phoneNumber = escapeMarkdown(session.phoneNumber)
-
-  const processingMessage = `⏳ PROCESSING YOUR DATA BUNDLE\\.\\.\\.
-
-NETWORK: ${networkName}
-PACKAGE: ${session.package.volumeGB}GB \\- ₵${session.package.priceGHS.toFixed(2)}
-PHONE: ${phoneNumber}
-
-PLEASE RELAX WHILE WE PROCESS YOUR REQUEST\\.\\.\\.`
-
-  let processingMsg
-  try {
-    processingMsg = await bot.sendMessage(chatId, processingMessage, { parse_mode: "MarkdownV2" })
-  } catch (error) {
-    console.error("Failed to send processing message:", error)
-    return
-  }
-
-  try {
-    const result = await purchaseDataBundle(session.phoneNumber, session.package.network_id, session.package.volume)
-
-    if (result.success === true) {
-      const transactionCode = escapeMarkdown(result.transaction_code || "N/A")
-
-      const successMessage = `✅ BUNDLE PROCESSED SUCCESSFULLY
-
-NETWORK: ${networkName}
-PACKAGE: ${session.package.volumeGB}GB \\- ₵${session.package.priceGHS.toFixed(2)}
-PHONE: ${phoneNumber}
-TRANSACTION ID: ${transactionCode}
-
-THANK YOU FOR USING PBM HUB GHANA\\!`
-
-      const userId = chatId
-      const orderId = result.transaction_code || Date.now()
-      const orderData = {
-        bundle: `${session.package.volumeGB}GB`,
-        amount: session.package.priceGHS,
-        payment_method: "paystack",
-        status: "success",
-        timestamp: new Date().toISOString(),
-        phone: session.phoneNumber,
-      }
-      await saveOrder(userId, orderId, orderData)
-
-      const txnData = {
-        type: "purchase",
-        amount: session.package.priceGHS,
-        payment_method: "paystack",
-        status: "success",
-        reference: result.transaction_code || "paystack",
-        timestamp: new Date().toISOString(),
-      }
-      await saveTransaction(userId, orderId, txnData)
-
-      const keyboard = {
-        inline_keyboard: [[{ text: "🔄 BUY AGAIN", callback_data: "back_to_networks" }]],
-      }
-
-      await bot.editMessageText(successMessage, {
-        chat_id: chatId,
-        message_id: processingMsg.message_id,
-        parse_mode: "MarkdownV2",
-        reply_markup: keyboard,
-      })
-    } else {
-      throw new Error(result.message || "Purchase failed")
-    }
-  } catch (error) {
-    console.error("Data bundle purchase failed:", error)
-
-    let errorMessage = "❌ Failed to activate data bundle\\. "
-
-    if (error.response?.status === 400) {
-      const responseData = error.response.data
-      if (responseData.message === "Insufficient balance.") {
-        errorMessage += "Insufficient balance in Foster Console\\."
-      } else {
-        errorMessage += "Invalid request or insufficient balance\\."
-      }
-    } else if (error.response?.status === 404) {
-      errorMessage += "Package not found or out of stock\\."
-    } else if (error.response?.status === 403) {
-      errorMessage += "Access denied for this network transaction\\."
-    } else {
-      errorMessage += "Please contact support for assistance\\."
-    }
-
-    const keyboard = {
-      inline_keyboard: [
-        [{ text: "🔄 Try Again", callback_data: "back_to_networks" }],
-        [{ text: "🎧 Contact Support", callback_data: "support" }],
-      ],
-    }
-
-    try {
-      await bot.editMessageText(errorMessage, {
-        chat_id: chatId,
-        message_id: processingMsg.message_id,
-        parse_mode: "MarkdownV2",
-        reply_markup: keyboard,
-      })
-    } catch (editError) {
-      console.error("Failed to edit message:", editError)
-      await bot.sendMessage(chatId, errorMessage, {
-        parse_mode: "MarkdownV2",
-        reply_markup: keyboard,
-      })
+      await bot.sendMessage(chatId, errorMessage, { reply_markup: keyboard })
     }
   }
 }
@@ -1645,29 +740,26 @@ async function showNetworkSelection(chatId, messageId) {
   const message = `*CHOOSE YOUR NETWORK*
 
 SELECT YOUR PREFERRED NETWORK PROVIDER:`
-
   const keyboard = {
     inline_keyboard: [
       [
         { text: "MTN", callback_data: "network_mtn" },
-        { text: "TELECEL", callback_data: "network_telecel" },
+        { text: "TELECEL", callback_data: "network_telecel" }
       ],
       [
         { text: "AIRTELTIGO", callback_data: "network_airteltigo" },
-        { text: "📋 MY ORDERS", callback_data: "my_orders" },
+        { text: "HELP", callback_data: "help" }
       ],
       [
-        { text: "HELP", callback_data: "help" },
         { text: "SUPPORT", callback_data: "support" },
-      ],
-      [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }],
-    ],
+        { text: "EXIT", callback_data: "exit" }
+      ]
+    ]
   }
-
   bot.editMessageText(message, {
     chat_id: chatId,
     message_id: messageId,
-    parse_mode: "MarkdownV2",
+    parse_mode: "Markdown",
     reply_markup: keyboard,
   })
 }
@@ -1676,29 +768,27 @@ async function showHelp(chatId, messageId) {
   const helpMessage = `*HELP & INSTRUCTIONS*
 
 HOW TO USE PBM HUB GHANA:
-1\\. CHOOSE NETWORK
-2\\. SELECT DATA PACKAGE
-3\\. ENTER PHONE NUMBER
-4\\. COMPLETE PAYMENT
-5\\. CLICK "I PAID" TO ACTIVATE
+1. CHOOSE NETWORK
+2. SELECT DATA PACKAGE
+3. ENTER PHONE NUMBER
+4. COMPLETE PAYMENT
+5. CLICK "I PAID" TO ACTIVATE
 
 SUPPORTED NETWORKS: MTN, TELECEL, AIRTELTIGO
 PAYMENT METHODS: CARD, MOBILE MONEY, BANK
-DATA PACKAGES: 1GB TO 100GB, BEST RATES, INSTANT ACTIVATION\\.`
-
+DATA PACKAGES: 1GB TO 5GB, BEST RATES, INSTANT ACTIVATION.`
   const keyboard = {
     inline_keyboard: [
       [
         { text: "BACK", callback_data: "back_to_networks" },
-        { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
-      ],
-    ],
+        { text: "EXIT", callback_data: "exit" }
+      ]
+    ]
   }
-
   bot.editMessageText(helpMessage, {
     chat_id: chatId,
     message_id: messageId,
-    parse_mode: "MarkdownV2",
+    parse_mode: "Markdown",
     reply_markup: keyboard,
   })
 }
@@ -1707,49 +797,50 @@ async function showSupport(chatId, messageId) {
   const supportMessage = `*CUSTOMER SUPPORT*
 
 FOR HELP, CONTACT US:
-EMAIL: update@pbmdatahub\\.pro
-PHONE: \\+23354 056 2479
+EMAIL: update@pbmdatahub.pro
+PHONE: +23354 056 2479
 TELEGRAM: @glenthox
 
 BUSINESS HOURS:
-MON\\-FRI: 8AM\\-8PM
-SAT\\-SUN: 10AM\\-6PM
+MON-FRI: 8AM-8PM
+SAT-SUN: 10AM-6PM
 
 COMMON ISSUES:
-• PAYMENT NOT REFLECTING
-• DATA NOT RECEIVED
-• WRONG NUMBER ENTERED
-• REFUND REQUESTS
+PAYMENT NOT REFLECTING
+DATA NOT RECEIVED
+WRONG NUMBER ENTERED
+REFUND REQUESTS
 
-WE RESPOND WITHIN 10 MINUTES\\.`
-
+WE RESPOND WITHIN 10 MINUTES.`
   const keyboard = {
     inline_keyboard: [
       [
         { text: "BACK", callback_data: "back_to_networks" },
-        { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
-      ],
-    ],
+        { text: "EXIT", callback_data: "exit" }
+      ]
+    ]
   }
-
   bot.editMessageText(supportMessage, {
     chat_id: chatId,
     message_id: messageId,
-    parse_mode: "MarkdownV2",
+    parse_mode: "Markdown",
     reply_markup: keyboard,
   })
 }
 
 bot.on("polling_error", (error) => {
   console.error("Polling error:", error)
+  // Don't restart, just log the error
 })
 
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason)
+  // Don't exit the process, just log the error
 })
 
 process.on("uncaughtException", (error) => {
   console.error("Uncaught Exception:", error)
+  // Don't exit the process, just log the error
 })
 
 async function validatePaystackKey() {
@@ -1776,6 +867,7 @@ async function validatePaystackKey() {
   }
 }
 
+// Initialize validations
 validatePaystackKey()
 console.log("🤖 PBM HUB Ghana is running with webhook... 🇬🇭")
 
@@ -1792,10 +884,11 @@ setInterval(
     }
   },
   5 * 60 * 1000,
-)
+) // Run cleanup every 5 minutes
 
-app.get("/verify.html", async (req, res) => {
-  const reference = req.query.reference || req.query.trxref
+// Serve dynamic verify.html for payment status
+app.get('/verify.html', async (req, res) => {
+  const reference = req.query.reference || req.query.trxref;
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1833,7 +926,7 @@ app.get("/verify.html", async (req, res) => {
       <div class="status-message">Thank you for your payment!</div>
       <div class="status-details">To complete your bundle purchase, please return to the Telegram bot and click <b>"I have paid"</b>.<br>The bot will verify your payment and process your bundle instantly.<br><br>If you have any issues, contact support.</div>
     </div>
-    <div class="reference"><strong>Transaction Reference:</strong><br><span>${reference || "N/A"}</span></div>
+    <div class="reference"><strong>Transaction Reference:</strong><br><span>${reference || 'N/A'}</span></div>
     <div id="actionButtons">
       <a href="https://t.me/pbmhub_bot" class="btn">Go to Telegram Bot</a>
     </div>
@@ -1843,5 +936,5 @@ app.get("/verify.html", async (req, res) => {
     </div>
   </div>
 </body>
-</html>`)
-})
+</html>`);
+});
