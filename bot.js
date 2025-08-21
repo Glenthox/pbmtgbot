@@ -345,7 +345,7 @@ const dataPackages = {
     {
       id: "telecel_10gb",
       volumeGB: 10,
-      priceGHS: 47.5,
+      priceGHS: 42.5,
       network: "telecel",
       networkName: "Telecel Ghana",
       network_id: 2,
@@ -354,7 +354,7 @@ const dataPackages = {
     {
       id: "telecel_15gb",
       volumeGB: 15,
-      priceGHS: 71.0,
+      priceGHS: 59.0,
       network: "telecel",
       networkName: "Telecel Ghana",
       network_id: 2,
@@ -363,7 +363,7 @@ const dataPackages = {
     {
       id: "telecel_20gb",
       volumeGB: 20,
-      priceGHS: 94.5,
+      priceGHS: 77.5,
       network: "telecel",
       networkName: "Telecel Ghana",
       network_id: 2,
@@ -372,7 +372,7 @@ const dataPackages = {
     {
       id: "telecel_30gb",
       volumeGB: 30,
-      priceGHS: 141.5,
+      priceGHS: 114.5,
       network: "telecel",
       networkName: "Telecel Ghana",
       network_id: 2,
@@ -383,7 +383,7 @@ const dataPackages = {
     {
       id: "airteltigo_1gb",
       volumeGB: 1,
-      priceGHS: 4.7,
+      priceGHS: 4.5,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
       network_id: 1, // Changed to AirtelTigo's correct network_id
@@ -392,7 +392,7 @@ const dataPackages = {
     {
       id: "airteltigo_2gb",
       volumeGB: 2,
-      priceGHS: 9.2,
+      priceGHS: 8.7,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
       network_id: 1,
@@ -401,7 +401,7 @@ const dataPackages = {
     {
       id: "airteltigo_3gb",
       volumeGB: 3,
-      priceGHS: 13.8,
+      priceGHS: 12.7,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
       network_id: 1,
@@ -419,7 +419,7 @@ const dataPackages = {
     {
       id: "airteltigo_10gb",
       volumeGB: 10,
-      priceGHS: 39.00,
+      priceGHS: 39.50,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
       network_id: 1,
