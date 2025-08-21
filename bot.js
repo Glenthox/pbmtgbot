@@ -274,7 +274,7 @@ const dataPackages = {
       priceGHS: 4.8,
       network: "mtn",
       networkName: "MTN Ghana",
-      network_id: 1,
+      network_id: 3, // Changed to MTN's correct network_id
       volume: "1024",
     },
     {
@@ -283,7 +283,7 @@ const dataPackages = {
       priceGHS: 9.6,
       network: "mtn",
       networkName: "MTN Ghana",
-      network_id: 1,
+      network_id: 3,
       volume: "2048",
     },
     {
@@ -292,7 +292,7 @@ const dataPackages = {
       priceGHS: 14.4,
       network: "mtn",
       networkName: "MTN Ghana",
-      network_id: 1,
+      network_id: 3,
       volume: "3072",
     },
     {
@@ -301,7 +301,7 @@ const dataPackages = {
       priceGHS: 24.0,
       network: "mtn",
       networkName: "MTN Ghana",
-      network_id: 1,
+      network_id: 3,
       volume: "5120",
     },
     {
@@ -310,7 +310,7 @@ const dataPackages = {
       priceGHS: 48.0,
       network: "mtn",
       networkName: "MTN Ghana",
-      network_id: 1,
+      network_id: 3,
       volume: "10240",
     },
     {
@@ -319,7 +319,7 @@ const dataPackages = {
       priceGHS: 72.0,
       network: "mtn",
       networkName: "MTN Ghana",
-      network_id: 1,
+      network_id: 3,
       volume: "15360",
     },
     {
@@ -328,7 +328,7 @@ const dataPackages = {
       priceGHS: 96.0,
       network: "mtn",
       networkName: "MTN Ghana",
-      network_id: 1,
+      network_id: 3,
       volume: "20480",
     },
     {
@@ -337,7 +337,7 @@ const dataPackages = {
       priceGHS: 144.0,
       network: "mtn",
       networkName: "MTN Ghana",
-      network_id: 1,
+      network_id: 3,
       volume: "30720",
     },
   ],
@@ -422,7 +422,7 @@ const dataPackages = {
       priceGHS: 4.5,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
-      network_id: 3,
+      network_id: 1, // Changed to AirtelTigo's correct network_id
       volume: "1024",
     },
     {
@@ -431,7 +431,7 @@ const dataPackages = {
       priceGHS: 9.0,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
-      network_id: 3,
+      network_id: 1,
       volume: "2048",
     },
     {
@@ -440,7 +440,7 @@ const dataPackages = {
       priceGHS: 13.5,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
-      network_id: 3,
+      network_id: 1,
       volume: "3072",
     },
     {
@@ -449,7 +449,7 @@ const dataPackages = {
       priceGHS: 22.5,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
-      network_id: 3,
+      network_id: 1,
       volume: "5120",
     },
     {
@@ -458,7 +458,7 @@ const dataPackages = {
       priceGHS: 45.0,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
-      network_id: 3,
+      network_id: 1,
       volume: "10240",
     },
     {
@@ -467,7 +467,7 @@ const dataPackages = {
       priceGHS: 67.5,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
-      network_id: 3,
+      network_id: 1,
       volume: "15360",
     },
     {
@@ -476,7 +476,7 @@ const dataPackages = {
       priceGHS: 90.0,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
-      network_id: 3,
+      network_id: 1,
       volume: "20480",
     },
     {
@@ -485,7 +485,7 @@ const dataPackages = {
       priceGHS: 135.0,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
-      network_id: 3,
+      network_id: 1,
       volume: "30720",
     },
   ],
