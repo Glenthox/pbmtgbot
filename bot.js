@@ -1003,11 +1003,11 @@ You will receive: ₵${amount.toFixed(2)} in your wallet.`
         `Reference: <code>${reference}</code>\n\n` +
         `Click the link below to complete your payment:\n` +
         `${paymentUrl}\n\n` +
-        `After payment, click "I PAID" to verify your transaction.`
+        `After payment, click "I HAVE PAID" to verify your transaction.`
 
       const keyboard = {
         inline_keyboard: [
-          [{ text: "✅ I PAID", callback_data: `confirm_${reference}` }],
+          [{ text: "✅ I HAVE PAID", callback_data: `confirm_${reference}` }],
           [{ text: "🏠 Main Menu", callback_data: "back_to_main" }],
         ],
       }
@@ -1046,11 +1046,11 @@ async function handlePhoneNumberInput(chatId, phoneNumber, session) {
 
   // Add wallet option if user has sufficient balance
   if (walletBalance >= selectedPackage.priceGHS) {
-    paymentOptions.push([{ text: `💰 WALLET (₵${walletBalance.toFixed(2)})`, callback_data: "pay_with_wallet" }])
+    paymentOptions.push([{ text: `💰 PAY WITH WALLET (₵${walletBalance.toFixed(2)})`, callback_data: "pay_with_wallet" }])
   }
 
   // Always add Paystack option
-  paymentOptions.push([{ text: "💳 PAYSTACK", callback_data: "pay_with_paystack" }])
+  paymentOptions.push([{ text: "💳 PAY WITH MOMO", callback_data: "pay_with_paystack" }])
   paymentOptions.push([{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }])
 
   const confirmMessage = `📦 *PACKAGE SELECTED*
