@@ -489,7 +489,7 @@ function isAdmin(username) {
   return username === ADMIN_USERNAME
 }
 
-async function sendAnnouncementToAllUsers(message, fromChatId) {
+async function sendAnnouncementToAllUsers(message, fromChatId, messageType = 'text', stickerFileId = null) {
   try {
     // Get all users from Firebase
     const usersData = await firebaseGet("users")
@@ -500,27 +500,59 @@ async function sendAnnouncementToAllUsers(message, fromChatId) {
 
     for (const userId in usersData) {
       try {
+        // Send header message first
         await bot.sendMessage(userId, 
-          `📢 *ANNOUNCEMENT*\n\n${message}`, 
-          { parse_mode: "Markdown" }
+          `📢 *NEW ANNOUNCEMENT FROM PBM HUB*\n` +
+          `━━━━━━━━━━━━━━━━━━━━\n`,
+          { 
+            parse_mode: "HTML",
+            allow_sending_without_reply: true
+          }
         )
+
+        // Wait a bit between header and main message
+        await new Promise(resolve => setTimeout(resolve, 100))
+
+        // Send the main announcement content
+        if (messageType === 'sticker' && stickerFileId) {
+          // Send sticker first if provided
+          await bot.sendSticker(userId, stickerFileId)
+          await new Promise(resolve => setTimeout(resolve, 100))
+        }
+
+        // Send the text message with HTML formatting
+        await bot.sendMessage(userId, message, {
+          parse_mode: "HTML",
+          disable_web_page_preview: false,
+          allow_sending_without_reply: true,
+          protect_content: false // Allow forwarding of announcements
+        })
+
         successCount++
       } catch (error) {
         console.error(`Failed to send announcement to ${userId}:`, error)
         failCount++
       }
-      // Add a small delay to avoid hitting rate limits
-      await new Promise(resolve => setTimeout(resolve, 50))
+      // Add a delay between users to avoid rate limits
+      await new Promise(resolve => setTimeout(resolve, 100))
     }
 
-    // Send summary to admin
-    await bot.sendMessage(fromChatId, 
-      `📊 *Announcement Delivery Report*\n\n` +
-      `✅ Successfully sent: ${successCount}\n` +
-      `❌ Failed: ${failCount}\n` +
-      `📩 Total users: ${Object.keys(usersData).length}`,
-      { parse_mode: "Markdown" }
-    )
+    // Send detailed report to admin
+    const report = `📊 *ANNOUNCEMENT DELIVERY REPORT*
+━━━━━━━━━━━━━━━━━━━━
+✅ *Successfully Delivered:* ${successCount}
+❌ *Failed Deliveries:* ${failCount}
+� *Total Recipients:* ${Object.keys(usersData).length}
+⏱ *Completion Time:* ${new Date().toLocaleTimeString()}
+
+${failCount > 0 ? "⚠️ Some messages failed to deliver. This might be due to users blocking the bot or deleting their accounts." : "✅ All messages delivered successfully!"}`
+
+    await bot.sendMessage(fromChatId, report, {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [[{ text: "🏠 Return to Main Menu", callback_data: "back_to_main" }]]
+      }
+    })
 
     return successCount
   } catch (error) {
@@ -553,7 +585,7 @@ bot.onText(/\/start/, async (msg) => {
     console.error("Error checking/creating user profile:", error)
   }
 
-  const welcomeMessage = `<b>WELCOME TO PBM HUB GHANA</b>
+  const welcomeMessage = `WELCOME TO PBM HUB GHANA
 
 THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA.
 
@@ -714,7 +746,12 @@ bot.on("callback_query", async (query) => {
       })
 
       try {
-        await sendAnnouncementToAllUsers(session.announcementText, chatId)
+        await sendAnnouncementToAllUsers(
+          session.announcementText,
+          chatId,
+          session.stickerFileId ? 'sticker' : 'text',
+          session.stickerFileId
+        )
         userSessions.delete(chatId)
       } catch (error) {
         await bot.editMessageText("❌ Failed to send announcement. Please try again.", {
@@ -842,28 +879,70 @@ bot.on("message", async (msg) => {
         return
       }
 
-      // Show confirmation message
+      // If a sticker is sent
+      if (msg.sticker) {
+        // Store the sticker ID in the session
+        const currentSession = userSessions.get(chatId)
+        userSessions.set(chatId, {
+          ...currentSession,
+          stickerFileId: msg.sticker.file_id
+        })
+
+        await bot.sendMessage(chatId,
+          "✅ Sticker received! Now send your announcement text.\n\n" +
+          "You can use HTML formatting:\n" +
+          "• <b>bold</b>\n" +
+          "• <i>italic</i>\n" +
+          "• <u>underline</u>\n" +
+          "• <code>monospace</code>\n" +
+          "• <a href='URL'>links</a>\n\n" +
+          "You can also use custom emojis like:\n" +
+          "⭐️ 🌟 💫 ✨ 🔥 💎 🎯 🎨 🎭 🎪"
+        )
+        return
+      }
+
+      // Show confirmation message with preview
       const confirmKeyboard = {
         inline_keyboard: [
           [
-            { text: "✅ Send", callback_data: `confirm_announcement_${Date.now()}` },
+            { text: "✅ Send Now", callback_data: `confirm_announcement_${Date.now()}` },
             { text: "❌ Cancel", callback_data: "back_to_main" }
           ]
         ]
       }
 
+      // Send preview exactly as it will appear to users
       await bot.sendMessage(chatId,
-        `📢 *PREVIEW ANNOUNCEMENT*\n\n` +
-        `${text}\n\n` +
+        `📢 *ANNOUNCEMENT PREVIEW*\n` +
+        `━━━━━━━━━━━━━━━━━━━━\n\n` +
+        `This is how your announcement will appear to users:\n`,
+        { parse_mode: "Markdown" }
+      )
+
+      // If there's a stored sticker, send it in preview
+      if (session.stickerFileId) {
+        await bot.sendSticker(chatId, session.stickerFileId)
+      }
+
+      // Send the main message preview
+      await bot.sendMessage(chatId, text, {
+        parse_mode: "HTML",
+        disable_web_page_preview: false
+      })
+
+      // Send confirmation request
+      await bot.sendMessage(chatId,
+        `\n━━━━━━━━━━━━━━━━━━━━\n` +
         `Are you sure you want to send this announcement to all users?`,
         {
-          parse_mode: "Markdown",
           reply_markup: confirmKeyboard
         }
       )
 
       // Store announcement text in session
       userSessions.set(chatId, {
+        ...session,
         step: "confirm_announcement",
         announcementText: text
       })
@@ -998,7 +1077,7 @@ You will receive: ₵${amount.toFixed(2)} in your wallet.`
       })
 
       const depositMessage = 
-        `💳 <b>WALLET DEPOSIT</b>\n\n` +
+        `💳 WALLET DEPOSIT\n\n` +
         `Amount: <b>₵${amount.toFixed(2)}</b>\n` +
         `Reference: <code>${reference}</code>\n\n` +
         `Click the link below to complete your payment:\n` +
@@ -1609,7 +1688,7 @@ Need help? We're here for you!
 
 *CONTACT METHODS:*
 📧 Email: support@pbmhub.com
-📱 WhatsApp: +233 XX XXX XXXX
+📱 Telegram: @glenthox
 ⏰ Hours: 24/7 Support
 
 *COMMON ISSUES:*
