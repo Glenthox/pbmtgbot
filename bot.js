@@ -98,7 +98,9 @@ async function findOrderById(userId, orderId) {
 
 // Express server for webhook
 const app = express()
-app.use(bodyParser.json())
+app.use(bodyParser.json({
+  verify: (req, res, buf) => { req.rawBody = buf } // keep raw for HMAC
+}))
 
 // Serve payment verification HTML page
 const paymentVerificationHtml = `<!DOCTYPE html>
@@ -212,35 +214,56 @@ app.post(`/webhook/${BOT_TOKEN}`, (req, res) => {
 
 // Paystack webhook for payment verification
 app.post("/paystack/webhook", async (req, res) => {
-  const hash = crypto.createHmac("sha512", PAYSTACK_SECRET_KEY).update(JSON.stringify(req.body)).digest("hex")
+  try {
+    const signature = req.headers["x-paystack-signature"]
+    const computed = crypto.createHmac("sha512", PAYSTACK_SECRET_KEY)
+      .update(req.rawBody)
+      .digest("hex")
+    if (computed !== signature) return res.sendStatus(401)
 
-  if (hash === req.headers["x-paystack-signature"]) {
     const event = req.body
+    if (event?.event !== "charge.success") return res.sendStatus(200)
 
-    if (event.event === "charge.success") {
-      const { reference, amount, customer } = event.data
-      const userId = reference.split("_")[1] // Extract user ID from reference
+    const data = event.data
+    const reference = data.reference
+    const meta = data.metadata || {}
+    const userId = Number(meta.user_id || (reference?.split("_")[1]))
 
-      try {
-        const session = userSessions.get(Number.parseInt(userId))
-        if (session) {
-          if (session.type === "deposit") {
-            await processWalletDeposit(Number.parseInt(userId), session, reference, amount / 100)
-          } else if (session.type === "purchase") {
-            await processDataBundle(Number.parseInt(userId), session, reference)
-          }
-        }
-      } catch (error) {
-        console.error("Webhook processing error:", error)
-      }
+    // Idempotency: skip if processed
+    const already = await firebaseGet(`users/${userId}/transactions/${reference}`)
+    if (already?.status === "processed") return res.sendStatus(200)
+
+    if (meta.type === "deposit") {
+      await processWalletDeposit(userId, { type: "deposit" }, reference, data.amount / 100)
+    } else if (meta.type === "purchase") {
+      const pkg = getPackageById(meta.package_id)
+      if (!pkg) throw new Error("Unknown package")
+      await processDataBundle(userId, {
+        selectedPackage: pkg,
+        phoneNumber: meta.phone_number,
+        paymentMethod: "paystack",
+      }, reference)
     }
-  }
 
-  res.sendStatus(200)
+    await saveTransaction(userId, reference, { status: "processed", at: new Date().toISOString() })
+    return res.sendStatus(200)
+  } catch (e) {
+    console.error("Webhook error:", e)
+    return res.sendStatus(500)
+  }
 })
 
 // User sessions storage
 const userSessions = new Map()
+
+// Package lookup helper
+function getPackageById(id) {
+  for (const net in dataPackages) {
+    const p = dataPackages[net].find(x => x.id === id)
+    if (p) return p
+  }
+  return null
+}
 
 // Data packages
 const dataPackages = {
@@ -603,7 +626,7 @@ bot.on("callback_query", async (query) => {
     } else if (data === "support") {
       await showSupport(chatId, messageId)
     } else if (data.startsWith("confirm_")) {
-      const reference = data.split("_")[1]
+      const reference = data.slice("confirm_".length) // keep the entire reference
       await handlePaymentConfirmation(chatId, messageId, reference)
     } else if (data === "my_orders") {
       await showMyOrders(chatId, messageId)
@@ -800,15 +823,13 @@ async function handleDepositAmountInput(chatId, text) {
         step: "payment_pending",
       })
 
-      const depositMessage = `💳 *WALLET DEPOSIT*
-
-Amount: ₵${amount.toFixed(2)}
-Reference: ${reference}
-
-Click the link below to complete your payment:
-${paymentUrl}
-
-After payment, click "I PAID" to verify your transaction.`
+      const depositMessage = 
+        `💳 <b>WALLET DEPOSIT</b>\n\n` +
+        `Amount: <b>₵${amount.toFixed(2)}</b>\n` +
+        `Reference: <code>${reference}</code>\n\n` +
+        `Click the link below to complete your payment:\n` +
+        `${paymentUrl}\n\n` +
+        `After payment, click "I PAID" to verify your transaction.`
 
       const keyboard = {
         inline_keyboard: [
@@ -818,7 +839,7 @@ After payment, click "I PAID" to verify your transaction.`
       }
 
       await bot.sendMessage(chatId, depositMessage, {
-        parse_mode: "Markdown",
+        parse_mode: "HTML",
         reply_markup: keyboard,
       })
     } else {
@@ -1432,36 +1453,31 @@ For urgent issues, please use WhatsApp for faster response.`
 
 async function handlePaymentConfirmation(chatId, messageId, reference) {
   try {
-    // Verify payment with Paystack
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
-      headers: {
-        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-      },
+      headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` },
     })
 
     if (response.data.status && response.data.data.status === "success") {
-      const session = userSessions.get(chatId)
-
-      if (!session) {
-        await bot.editMessageText("❌ Session expired. Please start a new transaction.", {
-          chat_id: chatId,
-          message_id: messageId,
-          reply_markup: {
-            inline_keyboard: [[{ text: "🏠 Start Over", callback_data: "back_to_main" }]],
-          },
-        })
-        return
+      const v = response.data.data
+      const meta = v.metadata || {}
+      const type = meta.type
+      // Idempotency
+      const done = await firebaseGet(`users/${chatId}/transactions/${reference}`)
+      if (done?.status !== "processed") {
+        if (type === "deposit") {
+          await processWalletDeposit(chatId, { type: "deposit" }, reference, v.amount / 100)
+        } else if (type === "purchase") {
+          const pkg = getPackageById(meta.package_id)
+          if (!pkg) throw new Error("Unknown package")
+          await processDataBundle(chatId, {
+            selectedPackage: pkg,
+            phoneNumber: meta.phone_number,
+            paymentMethod: "paystack",
+          }, reference)
+        }
+        await saveTransaction(chatId, reference, { status: "processed", at: new Date().toISOString() })
       }
-
-      if (session.type === "deposit") {
-        await processWalletDeposit(chatId, session, reference, session.amount)
-      } else if (session.type === "purchase") {
-        await processDataBundle(chatId, session, reference)
-      }
-
-      // Clear session after successful processing
-      userSessions.delete(chatId)
-
+      
       await bot.editMessageText("✅ Payment verified and processed successfully!", {
         chat_id: chatId,
         message_id: messageId,
@@ -1641,17 +1657,15 @@ Your data bundle has been delivered successfully!`
           step: "payment_pending",
         })
 
-        const paymentMessage = `💳 *PAYMENT REQUIRED*
-
-🌐 *NETWORK:* ${selectedPackage.networkName.toUpperCase()}
-📊 *PACKAGE:* ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}
-📱 *PHONE:* ${session.phoneNumber}
-📋 *REFERENCE:* ${reference}
-
-Click the link below to complete your payment:
-${paymentUrl}
-
-After payment, click "I PAID" to verify your transaction.`
+        const paymentMessage = 
+          `💳 <b>PAYMENT REQUIRED</b>\n\n` +
+          `🌐 <b>NETWORK:</b> ${selectedPackage.networkName.toUpperCase()}\n` +
+          `📊 <b>PACKAGE:</b> ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}\n` +
+          `📱 <b>PHONE:</b> ${session.phoneNumber}\n` +
+          `📋 <b>REFERENCE:</b> <code>${reference}</code>\n\n` +
+          `Click the link below to complete your payment:\n` +
+          `${paymentUrl}\n\n` +
+          `After payment, click "I PAID" to verify your transaction.`
 
         const keyboard = {
           inline_keyboard: [
@@ -1663,7 +1677,7 @@ After payment, click "I PAID" to verify your transaction.`
         await bot.editMessageText(paymentMessage, {
           chat_id: chatId,
           message_id: messageId,
-          parse_mode: "Markdown",
+          parse_mode: "HTML",
           reply_markup: keyboard,
         })
       } else {
