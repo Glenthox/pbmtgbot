@@ -364,8 +364,6 @@ app.get("/payment-success", (req, res) => {
 
 async function verifyPayment(chatId, messageId, reference) {
   try {
-    console.log(`[v0] Verifying payment for reference: ${reference}`)
-
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
         Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
@@ -373,10 +371,9 @@ async function verifyPayment(chatId, messageId, reference) {
       },
     })
 
-    console.log(`[v0] Paystack response status:`, response.data.status)
-    console.log(`[v0] Transaction status:`, response.data.data?.status)
+    const { data } = response.data
 
-    if (response.data.status && response.data.data.status === "success") {
+    if (response.data.status === true && data && data.status === "success") {
       const session = userSessions.get(chatId)
 
       if (!session) {
@@ -390,15 +387,12 @@ async function verifyPayment(chatId, messageId, reference) {
         return
       }
 
-      console.log(`[v0] Processing ${session.type} for user ${chatId}`)
-
       if (session.type === "deposit") {
-        await processWalletDeposit(chatId, session, reference, session.amount)
+        await processWalletDeposit(chatId, session, reference, data.amount / 100)
       } else if (session.type === "purchase") {
         await processDataBundle(chatId, session, reference)
       }
 
-      // Clear session after successful processing
       userSessions.delete(chatId)
 
       await bot.editMessageText("✅ Payment verified and processed successfully!", {
@@ -409,8 +403,7 @@ async function verifyPayment(chatId, messageId, reference) {
         },
       })
     } else {
-      const transactionStatus = response.data.data?.status || "Unknown"
-      console.log(`[v0] Payment verification failed. Status: ${transactionStatus}`)
+      const transactionStatus = data?.status || "failed"
 
       await bot.editMessageText(
         `❌ Payment verification failed. 
@@ -432,13 +425,11 @@ Please ensure payment was completed successfully and try again.`,
       )
     }
   } catch (error) {
-    console.error("[v0] Payment verification error:", error.response?.data || error.message)
-
     let errorMessage = "Verification failed"
     if (error.response?.status === 400) {
       errorMessage = "Invalid payment reference"
     } else if (error.response?.status === 401) {
-      errorMessage = "Authentication failed - please contact support"
+      errorMessage = "Authentication failed"
     } else if (error.response?.status === 404) {
       errorMessage = "Transaction not found"
     }
