@@ -1817,15 +1817,6 @@ Your data bundle has been delivered successfully!`
       const serviceCharge = selectedPackage.priceGHS * 0.02;
       const totalAmount = selectedPackage.priceGHS + serviceCharge;
 
-      // Show charge breakdown before proceeding
-      await bot.sendMessage(chatId, 
-        `💰 *PAYMENT BREAKDOWN*\n\n` +
-        `Package Price: ₵${selectedPackage.priceGHS.toFixed(2)}\n` +
-        `Service Charge (2%): ₵${serviceCharge.toFixed(2)}\n` +
-        `Total to Pay: ₵${totalAmount.toFixed(2)}\n`,
-        { parse_mode: "Markdown" }
-      );
-
       // Create Paystack payment link
       const paystackResponse = await axios.post(
         "https://api.paystack.co/transaction/initialize",
