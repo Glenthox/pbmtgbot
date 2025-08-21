@@ -1036,7 +1036,7 @@ async function initiatePaystackPayment(chatId, session) {
       }
       await saveTransaction(chatId, reference, txnData)
 
-      const message = `*💳 PAYSTACK PAYMENT*
+      const message = `💳 PAYSTACK PAYMENT
 
 NETWORK: ${session.network.toUpperCase()}
 PACKAGE: ${session.package.volumeGB}GB | ₵${session.package.priceGHS.toFixed(2)}
@@ -1060,7 +1060,6 @@ After payment, click "I PAID" to verify and receive your bundle:`
       }
 
       await bot.sendMessage(chatId, message, {
-        parse_mode: "Markdown",
         reply_markup: keyboard,
         disable_web_page_preview: false,
       })
@@ -1116,7 +1115,7 @@ async function processWalletDeposit(chatId, session) {
       }
       await saveTransaction(chatId, reference, txnData)
 
-      const message = `*💰 WALLET DEPOSIT*
+      const message = `💰 WALLET DEPOSIT
 
 Amount: ₵${session.depositAmount.toFixed(2)}
 Reference: ${reference}
@@ -1137,7 +1136,6 @@ After payment, click "I PAID" to verify and credit your wallet:`
       }
 
       await bot.sendMessage(chatId, message, {
-        parse_mode: "Markdown",
         reply_markup: keyboard,
         disable_web_page_preview: false,
       })
@@ -1705,7 +1703,7 @@ app.get("/deposit-verify.html", async (req, res) => {
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=width, initial-scale=1.0">
   <title>Deposit Complete - PBM HUB</title>
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
   <style>
