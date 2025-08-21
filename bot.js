@@ -12,6 +12,22 @@ const PAYSTACK_PUBLIC_KEY = process.env.PAYSTACK_PUBLIC_KEY
 const FOSTER_API_KEY = process.env.FOSTER_API_KEY
 const FOSTER_BASE_URL = "https://agent.jaybartservices.com/api/v1"
 
+// Admin configuration
+const ADMIN_USERNAME = "glenthox"
+const DEFAULT_WELCOME_MESSAGE = `<b>WELCOME TO PBM HUB GHANA</b>
+
+THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA.
+
+FEATURES:
+💰 WALLET SYSTEM
+📱 MTN, TELECEL, AND AIRTELTIGO PACKAGES
+🔒 SECURE PAYMENTS
+⚡ FASTER DELIVERY
+🕐 24/7 SERVICE
+💎 BEST RATES
+
+SELECT YOUR NETWORK TO BEGIN.`
+
 // Firebase Realtime Database config
 const FIREBASE_URL = "https://crudapp-c51d3-default-rtdb.asia-southeast1.firebasedatabase.app/"
 
@@ -482,7 +498,95 @@ function isValidGhanaNumber(phone) {
   return /^(0|233|\+233)[2-9]\d{8}$/.test(phone)
 }
 
-// Bot command handlers
+// Admin command to set welcome message
+bot.onText(/\/setwelcome (.+)/, async (msg, match) => {
+  const chatId = msg.chat.id;
+  const username = msg.from.username;
+
+  if (username !== ADMIN_USERNAME) {
+    bot.sendMessage(chatId, "❌ This command is only available to administrators.");
+    return;
+  }
+
+  const newWelcomeMessage = match[1];
+  try {
+    await firebaseSet('settings/welcome_message', newWelcomeMessage);
+    bot.sendMessage(chatId, "✅ Welcome message updated successfully!");
+  } catch (error) {
+    console.error("Error setting welcome message:", error);
+    bot.sendMessage(chatId, "❌ Failed to update welcome message. Please try again.");
+  }
+});
+
+// Admin command to reset welcome message to default
+bot.onText(/\/resetwelcome/, async (msg) => {
+  const chatId = msg.chat.id;
+  const username = msg.from.username;
+
+  if (username !== ADMIN_USERNAME) {
+    bot.sendMessage(chatId, "❌ This command is only available to administrators.");
+    return;
+  }
+
+  try {
+    await firebaseSet('settings/welcome_message', DEFAULT_WELCOME_MESSAGE);
+    bot.sendMessage(chatId, "✅ Welcome message reset to default!");
+  } catch (error) {
+    console.error("Error resetting welcome message:", error);
+    bot.sendMessage(chatId, "❌ Failed to reset welcome message. Please try again.");
+  }
+});
+
+// Admin command to view current welcome message
+bot.onText(/\/viewwelcome/, async (msg) => {
+  const chatId = msg.chat.id;
+  const username = msg.from.username;
+
+  if (username !== ADMIN_USERNAME) {
+    bot.sendMessage(chatId, "❌ This command is only available to administrators.");
+    return;
+  }
+
+  try {
+    const welcomeMessage = await firebaseGet('settings/welcome_message') || DEFAULT_WELCOME_MESSAGE;
+    bot.sendMessage(chatId, 
+      `*CURRENT WELCOME MESSAGE:*\n\n${welcomeMessage}\n\n` +
+      `To change it, use:\n/setwelcome <your message>`,
+      { parse_mode: "HTML" }
+    );
+  } catch (error) {
+    console.error("Error getting welcome message:", error);
+    bot.sendMessage(chatId, "❌ Failed to get welcome message. Please try again.");
+  }
+});
+
+// Admin help command
+bot.onText(/\/adminhelp/, async (msg) => {
+  const chatId = msg.chat.id;
+  const username = msg.from.username;
+
+  if (username !== ADMIN_USERNAME) {
+    bot.sendMessage(chatId, "❌ This command is only available to administrators.");
+    return;
+  }
+
+  const adminHelp = `🔧 *ADMIN COMMANDS*
+
+/setwelcome <message> - Set a new welcome message
+/resetwelcome - Reset welcome message to default
+/viewwelcome - View current welcome message
+
+*Formatting Tips:*
+• Use HTML formatting (<b>bold</b>, <i>italic</i>)
+• Use emojis to make it attractive
+• Include line breaks with \\n
+
+*Note:* Only @${ADMIN_USERNAME} can use these commands.`;
+
+  bot.sendMessage(chatId, adminHelp, { parse_mode: "Markdown" });
+});
+
+// Modified start command to use dynamic welcome message
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id
   const user = msg.from
@@ -506,19 +610,8 @@ bot.onText(/\/start/, async (msg) => {
     console.error("Error checking/creating user profile:", error)
   }
 
-  const welcomeMessage = `<b>WELCOME TO PBM HUB GHANA</b>
-
-THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA.
-
-FEATURES:
-💰 WALLET SYSTEM
-📱 MTN, TELECEL, AND AIRTELTIGO PACKAGES
-🔒 SECURE PAYMENTS
-⚡ FASTER DELIVERY
-🕐 24/7 SERVICE
-💎 BEST RATES
-
-SELECT YOUR NETWORK TO BEGIN.`
+  // Get welcome message from settings or use default
+  const welcomeMessage = await firebaseGet('settings/welcome_message') || DEFAULT_WELCOME_MESSAGE;
 
   const keyboard = {
     inline_keyboard: [
@@ -1026,10 +1119,19 @@ async function handlePackageSelection(chatId, messageId, packageId) {
     step: "phone_number",
   })
 
+  const serviceCharge = selectedPackage.priceGHS * 0.02;
+  const totalAmount = selectedPackage.priceGHS + serviceCharge;
+  
   const message = `📦 *PACKAGE SELECTED*
 
 🌐 *NETWORK:* ${selectedPackage.networkName.toUpperCase()}
-📊 *PACKAGE:* ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}
+📊 *PACKAGE:* ${selectedPackage.volumeGB}GB
+💰 *PRICE BREAKDOWN:*
+• Package Price: ₵${selectedPackage.priceGHS.toFixed(2)}
+• Service Charge (2%): ₵${serviceCharge.toFixed(2)}
+• Total to Pay: ₵${totalAmount.toFixed(2)}
+
+ℹ️ *Note:* A 2% service charge is applied to all purchases to cover transaction costs.
 
 ENTER YOUR GHANA PHONE NUMBER (E.G. 0241234567 OR +233241234567):`
 
