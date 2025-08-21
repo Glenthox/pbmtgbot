@@ -271,7 +271,7 @@ const dataPackages = {
     {
       id: "mtn_1gb",
       volumeGB: 1,
-      priceGHS: 4.8,
+      priceGHS: 4.9,
       network: "mtn",
       networkName: "MTN Ghana",
       network_id: 3, // Changed to MTN's correct network_id
@@ -280,7 +280,7 @@ const dataPackages = {
     {
       id: "mtn_2gb",
       volumeGB: 2,
-      priceGHS: 9.6,
+      priceGHS: 9.5,
       network: "mtn",
       networkName: "MTN Ghana",
       network_id: 3,
@@ -289,7 +289,7 @@ const dataPackages = {
     {
       id: "mtn_3gb",
       volumeGB: 3,
-      priceGHS: 14.4,
+      priceGHS: 14.2,
       network: "mtn",
       networkName: "MTN Ghana",
       network_id: 3,
@@ -298,7 +298,7 @@ const dataPackages = {
     {
       id: "mtn_5gb",
       volumeGB: 5,
-      priceGHS: 24.0,
+      priceGHS: 23,
       network: "mtn",
       networkName: "MTN Ghana",
       network_id: 3,
@@ -307,7 +307,7 @@ const dataPackages = {
     {
       id: "mtn_10gb",
       volumeGB: 10,
-      priceGHS: 48.0,
+      priceGHS: 43,
       network: "mtn",
       networkName: "MTN Ghana",
       network_id: 3,
@@ -316,7 +316,7 @@ const dataPackages = {
     {
       id: "mtn_15gb",
       volumeGB: 15,
-      priceGHS: 72.0,
+      priceGHS: 63,
       network: "mtn",
       networkName: "MTN Ghana",
       network_id: 3,
@@ -325,7 +325,7 @@ const dataPackages = {
     {
       id: "mtn_20gb",
       volumeGB: 20,
-      priceGHS: 96.0,
+      priceGHS: 84,
       network: "mtn",
       networkName: "MTN Ghana",
       network_id: 3,
@@ -334,7 +334,7 @@ const dataPackages = {
     {
       id: "mtn_30gb",
       volumeGB: 30,
-      priceGHS: 144.0,
+      priceGHS: 124,
       network: "mtn",
       networkName: "MTN Ghana",
       network_id: 3,
@@ -343,45 +343,9 @@ const dataPackages = {
   ],
   telecel: [
     {
-      id: "telecel_1gb",
-      volumeGB: 1,
-      priceGHS: 5.0,
-      network: "telecel",
-      networkName: "Telecel Ghana",
-      network_id: 2,
-      volume: "1000",
-    },
-    {
-      id: "telecel_2gb",
-      volumeGB: 2,
-      priceGHS: 10.0,
-      network: "telecel",
-      networkName: "Telecel Ghana",
-      network_id: 2,
-      volume: "2000",
-    },
-    {
-      id: "telecel_3gb",
-      volumeGB: 3,
-      priceGHS: 15.0,
-      network: "telecel",
-      networkName: "Telecel Ghana",
-      network_id: 2,
-      volume: "3000",
-    },
-    {
-      id: "telecel_5gb",
-      volumeGB: 5,
-      priceGHS: 25.0,
-      network: "telecel",
-      networkName: "Telecel Ghana",
-      network_id: 2,
-      volume: "5000",
-    },
-    {
       id: "telecel_10gb",
       volumeGB: 10,
-      priceGHS: 50.0,
+      priceGHS: 47.5,
       network: "telecel",
       networkName: "Telecel Ghana",
       network_id: 2,
@@ -390,7 +354,7 @@ const dataPackages = {
     {
       id: "telecel_15gb",
       volumeGB: 15,
-      priceGHS: 75.0,
+      priceGHS: 71.0,
       network: "telecel",
       networkName: "Telecel Ghana",
       network_id: 2,
@@ -399,7 +363,7 @@ const dataPackages = {
     {
       id: "telecel_20gb",
       volumeGB: 20,
-      priceGHS: 100.0,
+      priceGHS: 94.5,
       network: "telecel",
       networkName: "Telecel Ghana",
       network_id: 2,
@@ -408,7 +372,7 @@ const dataPackages = {
     {
       id: "telecel_30gb",
       volumeGB: 30,
-      priceGHS: 150.0,
+      priceGHS: 141.5,
       network: "telecel",
       networkName: "Telecel Ghana",
       network_id: 2,
@@ -419,7 +383,7 @@ const dataPackages = {
     {
       id: "airteltigo_1gb",
       volumeGB: 1,
-      priceGHS: 4.5,
+      priceGHS: 4.7,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
       network_id: 1, // Changed to AirtelTigo's correct network_id
@@ -428,7 +392,7 @@ const dataPackages = {
     {
       id: "airteltigo_2gb",
       volumeGB: 2,
-      priceGHS: 9.0,
+      priceGHS: 9.2,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
       network_id: 1,
@@ -437,7 +401,7 @@ const dataPackages = {
     {
       id: "airteltigo_3gb",
       volumeGB: 3,
-      priceGHS: 13.5,
+      priceGHS: 13.8,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
       network_id: 1,
@@ -446,7 +410,7 @@ const dataPackages = {
     {
       id: "airteltigo_5gb",
       volumeGB: 5,
-      priceGHS: 22.5,
+      priceGHS: 21,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
       network_id: 1,
@@ -455,7 +419,7 @@ const dataPackages = {
     {
       id: "airteltigo_10gb",
       volumeGB: 10,
-      priceGHS: 45.0,
+      priceGHS: 39.00,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
       network_id: 1,
@@ -464,7 +428,7 @@ const dataPackages = {
     {
       id: "airteltigo_15gb",
       volumeGB: 15,
-      priceGHS: 67.5,
+      priceGHS: 61.0,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
       network_id: 1,
@@ -473,7 +437,7 @@ const dataPackages = {
     {
       id: "airteltigo_20gb",
       volumeGB: 20,
-      priceGHS: 90.0,
+      priceGHS: 90.5,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
       network_id: 1,
@@ -482,7 +446,7 @@ const dataPackages = {
     {
       id: "airteltigo_30gb",
       volumeGB: 30,
-      priceGHS: 135.0,
+      priceGHS: 135.5,
       network: "airteltigo",
       networkName: "AirtelTigo Ghana",
       network_id: 1,
@@ -789,7 +753,7 @@ async function handleFindOrderInput(chatId, orderId) {
   }
 
   // Clear session
-  userSessions.delete(chatId)
+  userSessions.delete(chatId) 
 }
 
 async function handleDepositAmountInput(chatId, text) {
@@ -1606,7 +1570,9 @@ async function handlePaymentMethodSelection(chatId, messageId, method) {
 
 🌐 *NETWORK:* ${selectedPackage.networkName.toUpperCase()}
 📊 *PACKAGE:* ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}
-📱 *PHONE:* ${session.phoneNumber}
+� *SERVICE CHARGE (2%):* ₵${(selectedPackage.priceGHS * 0.02).toFixed(2)}
+💵 *TOTAL PAID:* ₵${(selectedPackage.priceGHS * 1.02).toFixed(2)}
+�📱 *PHONE:* ${session.phoneNumber}
 💳 *PAYMENT:* WALLET
 📋 *ORDER ID:* ${reference}
 
@@ -1662,12 +1628,25 @@ Your data bundle has been delivered successfully!`
       const reference = `purchase_${chatId}_${Date.now()}`
       const email = `user${chatId}@pbmhub.com`
 
+      // Calculate service charge (2%) for direct purchase
+      const serviceCharge = selectedPackage.priceGHS * 0.02;
+      const totalAmount = selectedPackage.priceGHS + serviceCharge;
+
+      // Show charge breakdown before proceeding
+      await bot.sendMessage(chatId, 
+        `💰 *PAYMENT BREAKDOWN*\n\n` +
+        `Package Price: ₵${selectedPackage.priceGHS.toFixed(2)}\n` +
+        `Service Charge (2%): ₵${serviceCharge.toFixed(2)}\n` +
+        `Total to Pay: ₵${totalAmount.toFixed(2)}\n`,
+        { parse_mode: "Markdown" }
+      );
+
       // Create Paystack payment link
       const paystackResponse = await axios.post(
         "https://api.paystack.co/transaction/initialize",
         {
           email: email,
-          amount: Math.round(selectedPackage.priceGHS * 100), // Convert to kobo
+          amount: Math.round(totalAmount * 100), // Convert to kobo, including service charge
           reference: reference,
           callback_url: `${WEBHOOK_URL}/payment-success`,
           metadata: {
@@ -1675,6 +1654,8 @@ Your data bundle has been delivered successfully!`
             type: "purchase",
             package_id: selectedPackage.id,
             phone_number: session.phoneNumber,
+            original_amount: selectedPackage.priceGHS,
+            service_charge: serviceCharge,
           },
         },
         {
@@ -1701,7 +1682,9 @@ Your data bundle has been delivered successfully!`
           `💳 <b>PAYMENT REQUIRED</b>\n\n` +
           `🌐 <b>NETWORK:</b> ${selectedPackage.networkName.toUpperCase()}\n` +
           `📊 <b>PACKAGE:</b> ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}\n` +
-          `📱 <b>PHONE:</b> ${session.phoneNumber}\n` +
+          `� <b>SERVICE CHARGE (2%):</b> ₵${serviceCharge.toFixed(2)}\n` +
+          `💵 <b>TOTAL:</b> ₵${totalAmount.toFixed(2)}\n` +
+          `�📱 <b>PHONE:</b> ${session.phoneNumber}\n` +
           `📋 <b>REFERENCE:</b> <code>${reference}</code>\n\n` +
           `Click the link below to complete your payment:\n` +
           `${paymentUrl}\n\n` +
