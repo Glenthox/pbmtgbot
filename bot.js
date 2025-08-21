@@ -34,7 +34,7 @@ async function saveUserProfile(user) {
   const profile = {
     username: user.username || "unknown",
     first_name: user.first_name || "",
-    wallet: 0
+    wallet: 0,
   }
   await firebaseSet(`users/${user.id}/profile`, profile)
 }
@@ -74,7 +74,7 @@ app.listen(PORT, async () => {
     await bot.setWebHook(`${WEBHOOK_URL}/bot${BOT_TOKEN}`)
     console.log(`✅ Telegram webhook set to: ${WEBHOOK_URL}/bot${BOT_TOKEN}`)
   } catch (err) {
-    console.error('❌ Failed to set Telegram webhook:', err.message)
+    console.error("❌ Failed to set Telegram webhook:", err.message)
   }
 })
 
@@ -90,8 +90,8 @@ app.post(`/bot${BOT_TOKEN}`, (req, res) => {
 })
 
 // Cache for API packages
-let cachedPackages = null
-let lastFetchTime = 0
+const cachedPackages = null
+const lastFetchTime = 0
 const CACHE_DURATION = 5 * 60 * 1000 // 5 minutes
 
 // User sessions storage
@@ -221,8 +221,17 @@ function getDataPackages() {
 }
 
 // Bot command handlers
-bot.onText(/\/start/, (msg) => {
+bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id
+  const user = msg.from
+
+  // Save user profile when they start the bot
+  try {
+    await saveUserProfile(user)
+  } catch (error) {
+    console.error("Error saving user profile:", error)
+  }
+
   const welcomeMessage = `*WELCOME TO PBM HUB GHANA*
 
 THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA.
@@ -239,17 +248,18 @@ SELECT YOUR NETWORK TO BEGIN.`
     inline_keyboard: [
       [
         { text: "MTN", callback_data: "network_mtn" },
-        { text: "TELECEL", callback_data: "network_telecel" }
+        { text: "TELECEL", callback_data: "network_telecel" },
       ],
       [
         { text: "AIRTELTIGO", callback_data: "network_airteltigo" },
-        { text: "HELP", callback_data: "help" }
+        { text: "📋 MY ORDERS", callback_data: "my_orders" },
       ],
       [
+        { text: "HELP", callback_data: "help" },
         { text: "SUPPORT", callback_data: "support" },
-        { text: "EXIT", callback_data: "exit" }
-      ]
-    ]
+      ],
+      [{ text: "EXIT", callback_data: "exit" }],
+    ],
   }
   bot.sendMessage(chatId, welcomeMessage, {
     parse_mode: "Markdown",
@@ -279,6 +289,10 @@ bot.on("callback_query", async (query) => {
     } else if (data.startsWith("confirm_")) {
       const reference = data.split("_")[1]
       await handlePaymentConfirmation(chatId, messageId, reference)
+    } else if (data === "my_orders") {
+      await showMyOrders(chatId, messageId)
+    } else if (data === "back_to_main") {
+      await showMainMenu(chatId, messageId)
     }
 
     try {
@@ -295,6 +309,181 @@ bot.on("callback_query", async (query) => {
     }
   }
 })
+
+async function getLastOrders(userId, limit = 10) {
+  try {
+    const orders = await firebaseGet(`users/${userId}/orders`)
+    if (!orders) return []
+
+    // Convert orders object to array with order IDs
+    const ordersArray = Object.entries(orders).map(([orderId, orderData]) => ({
+      id: orderId,
+      ...orderData,
+    }))
+
+    // Sort by timestamp (newest first) and limit to specified number
+    return ordersArray.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, limit)
+  } catch (error) {
+    console.error("Error fetching orders:", error)
+    return []
+  }
+}
+
+async function showMyOrders(chatId, messageId) {
+  try {
+    // Show loading message first
+    await bot.editMessageText("🔍 Loading your order history...", {
+      chat_id: chatId,
+      message_id: messageId,
+    })
+
+    const orders = await getLastOrders(chatId, 10)
+
+    if (orders.length === 0) {
+      const noOrdersMessage = `*📋 MY ORDERS*
+
+❌ NO ORDERS FOUND
+
+You haven't made any purchases yet.
+Start by selecting a network to buy your first data bundle!`
+
+      const keyboard = {
+        inline_keyboard: [
+          [
+            { text: "🔄 BUY DATA", callback_data: "back_to_networks" },
+            { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
+          ],
+        ],
+      }
+
+      await bot.editMessageText(noOrdersMessage, {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: "Markdown",
+        reply_markup: keyboard,
+      })
+      return
+    }
+
+    // Format orders for display
+    let ordersMessage = `*📋 MY ORDERS (LAST ${orders.length})*\n\n`
+
+    orders.forEach((order, index) => {
+      const orderDate = new Date(order.timestamp).toLocaleDateString("en-GB", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+
+      const statusEmoji = order.status === "success" ? "✅" : order.status === "pending" ? "⏳" : "❌"
+
+      ordersMessage += `${index + 1}. ${statusEmoji} *${order.bundle}* - ₵${order.amount}\n`
+      ordersMessage += `   📅 ${orderDate}\n`
+      ordersMessage += `   💳 ${order.payment_method.toUpperCase()}\n`
+      ordersMessage += `   📊 ${order.status.toUpperCase()}\n\n`
+    })
+
+    ordersMessage += `💡 *TIP:* Your successful orders show data bundles that were delivered to your phone.`
+
+    const keyboard = {
+      inline_keyboard: [
+        [
+          { text: "🔄 BUY MORE DATA", callback_data: "back_to_networks" },
+          { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
+        ],
+        [{ text: "🎧 SUPPORT", callback_data: "support" }],
+      ],
+    }
+
+    await bot.editMessageText(ordersMessage, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: "Markdown",
+      reply_markup: keyboard,
+    })
+  } catch (error) {
+    console.error("Error showing orders:", error)
+
+    const errorMessage = `❌ *ERROR LOADING ORDERS*
+
+Unable to fetch your order history at the moment.
+Please try again later or contact support if the problem persists.`
+
+    const keyboard = {
+      inline_keyboard: [
+        [
+          { text: "🔄 TRY AGAIN", callback_data: "my_orders" },
+          { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
+        ],
+        [{ text: "🎧 SUPPORT", callback_data: "support" }],
+      ],
+    }
+
+    try {
+      await bot.editMessageText(errorMessage, {
+        chat_id: chatId,
+        message_id: messageId,
+        parse_mode: "Markdown",
+        reply_markup: keyboard,
+      })
+    } catch (editError) {
+      console.error("Failed to edit message with error:", editError)
+      await bot.sendMessage(chatId, errorMessage, {
+        parse_mode: "Markdown",
+        reply_markup: keyboard,
+      })
+    }
+  }
+}
+
+async function showMainMenu(chatId, messageId) {
+  const welcomeMessage = `*WELCOME TO PBM HUB GHANA*
+
+THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA.
+
+FEATURES:
+MTN, TELECEL, AND AIRTELTIGO PACKAGES
+SECURE PAYMENTS
+FASTER DELIVERY
+24/7 SERVICE
+BEST RATES
+
+SELECT YOUR NETWORK TO BEGIN.`
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: "MTN", callback_data: "network_mtn" },
+        { text: "TELECEL", callback_data: "network_telecel" },
+      ],
+      [
+        { text: "AIRTELTIGO", callback_data: "network_airteltigo" },
+        { text: "📋 MY ORDERS", callback_data: "my_orders" },
+      ],
+      [
+        { text: "HELP", callback_data: "help" },
+        { text: "SUPPORT", callback_data: "support" },
+      ],
+      [{ text: "EXIT", callback_data: "exit" }],
+    ],
+  }
+
+  try {
+    await bot.editMessageText(welcomeMessage, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: "Markdown",
+      reply_markup: keyboard,
+    })
+  } catch (error) {
+    console.error("Error showing main menu:", error)
+    await bot.sendMessage(chatId, welcomeMessage, {
+      parse_mode: "Markdown",
+      reply_markup: keyboard,
+    })
+  }
+}
 
 async function handleNetworkSelection(chatId, messageId, network) {
   try {
@@ -317,7 +506,7 @@ SELECT YOUR PREFERRED BUNDLE PACKAGE:`
         packages.packages.slice(i, i + 3).map((pkg) => ({
           text: `${pkg.volumeGB}GB | ₵${pkg.priceGHS.toFixed(2)}`.toUpperCase(),
           callback_data: `package_${pkg.id}`,
-        }))
+        })),
       )
     }
     const keyboard = {
@@ -325,9 +514,9 @@ SELECT YOUR PREFERRED BUNDLE PACKAGE:`
         ...packageButtons,
         [
           { text: "BACK", callback_data: "back_to_networks" },
-          { text: "HELP", callback_data: "help" }
-        ]
-      ]
+          { text: "HELP", callback_data: "help" },
+        ],
+      ],
     }
     await bot.editMessageText(message, {
       chat_id: chatId,
@@ -366,7 +555,7 @@ async function handlePackageSelection(chatId, messageId, packageId) {
       network: networkName,
       step: "phone_input",
     })
-  const message = `*PACKAGE SELECTED*
+    const message = `*PACKAGE SELECTED*
 
 NETWORK: ${networkName.toUpperCase()}
 PACKAGE: ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}
@@ -446,7 +635,7 @@ async function initiatePayment(chatId, session) {
         amount: session.package.priceGHS,
         payment_method: "paystack",
         status: "pending",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       }
       await saveOrder(userId, orderId, orderData)
       const txnData = {
@@ -455,7 +644,7 @@ async function initiatePayment(chatId, session) {
         payment_method: "paystack",
         status: "pending",
         reference: reference,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       }
       await saveTransaction(userId, reference, txnData)
 
@@ -472,13 +661,13 @@ SELECT AN OPTION BELOW TO CONTINUE:`
         inline_keyboard: [
           [
             { text: "PAY", url: paymentUrl },
-            { text: "I PAID", callback_data: `confirm_${reference}` }
+            { text: "I PAID", callback_data: `confirm_${reference}` },
           ],
           [
             { text: "CANCEL", callback_data: "back_to_networks" },
-            { text: "HELP", callback_data: "help" }
-          ]
-        ]
+            { text: "HELP", callback_data: "help" },
+          ],
+        ],
       }
       await bot.sendMessage(chatId, message, {
         reply_markup: keyboard,
@@ -558,7 +747,7 @@ async function handlePaymentConfirmation(chatId, messageId, reference) {
         payment_method: "paystack",
         status: "success",
         reference: paymentData.reference,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       }
       await saveTransaction(userId, txnId, txnData)
       // Update wallet balance
@@ -670,7 +859,7 @@ THANK YOU FOR USING PBM HUB GHANA!`
         amount: session.package.priceGHS,
         payment_method: "wallet",
         status: "success",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       }
       await saveOrder(userId, orderId, orderData)
       const txnData = {
@@ -679,7 +868,7 @@ THANK YOU FOR USING PBM HUB GHANA!`
         payment_method: "wallet",
         status: "success",
         reference: result.transaction_code || "wallet",
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
       }
       await saveTransaction(userId, orderId, txnData)
 
@@ -744,17 +933,18 @@ SELECT YOUR PREFERRED NETWORK PROVIDER:`
     inline_keyboard: [
       [
         { text: "MTN", callback_data: "network_mtn" },
-        { text: "TELECEL", callback_data: "network_telecel" }
+        { text: "TELECEL", callback_data: "network_telecel" },
       ],
       [
         { text: "AIRTELTIGO", callback_data: "network_airteltigo" },
-        { text: "HELP", callback_data: "help" }
+        { text: "📋 MY ORDERS", callback_data: "my_orders" },
       ],
       [
+        { text: "HELP", callback_data: "help" },
         { text: "SUPPORT", callback_data: "support" },
-        { text: "EXIT", callback_data: "exit" }
-      ]
-    ]
+      ],
+      [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }],
+    ],
   }
   bot.editMessageText(message, {
     chat_id: chatId,
@@ -781,9 +971,9 @@ DATA PACKAGES: 1GB TO 5GB, BEST RATES, INSTANT ACTIVATION.`
     inline_keyboard: [
       [
         { text: "BACK", callback_data: "back_to_networks" },
-        { text: "EXIT", callback_data: "exit" }
-      ]
-    ]
+        { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
+      ],
+    ],
   }
   bot.editMessageText(helpMessage, {
     chat_id: chatId,
@@ -816,9 +1006,10 @@ WE RESPOND WITHIN 10 MINUTES.`
     inline_keyboard: [
       [
         { text: "BACK", callback_data: "back_to_networks" },
-        { text: "EXIT", callback_data: "exit" }
-      ]
-    ]
+        { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
+      ],
+      [{ text: "🎧 SUPPORT", callback_data: "support" }],
+    ],
   }
   bot.editMessageText(supportMessage, {
     chat_id: chatId,
@@ -887,8 +1078,8 @@ setInterval(
 ) // Run cleanup every 5 minutes
 
 // Serve dynamic verify.html for payment status
-app.get('/verify.html', async (req, res) => {
-  const reference = req.query.reference || req.query.trxref;
+app.get("/verify.html", async (req, res) => {
+  const reference = req.query.reference || req.query.trxref
   res.send(`<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -926,7 +1117,7 @@ app.get('/verify.html', async (req, res) => {
       <div class="status-message">Thank you for your payment!</div>
       <div class="status-details">To complete your bundle purchase, please return to the Telegram bot and click <b>"I have paid"</b>.<br>The bot will verify your payment and process your bundle instantly.<br><br>If you have any issues, contact support.</div>
     </div>
-    <div class="reference"><strong>Transaction Reference:</strong><br><span>${reference || 'N/A'}</span></div>
+    <div class="reference"><strong>Transaction Reference:</strong><br><span>${reference || "N/A"}</span></div>
     <div id="actionButtons">
       <a href="https://t.me/pbmhub_bot" class="btn">Go to Telegram Bot</a>
     </div>
@@ -936,5 +1127,5 @@ app.get('/verify.html', async (req, res) => {
     </div>
   </div>
 </body>
-</html>`);
-});
+</html>`)
+})
