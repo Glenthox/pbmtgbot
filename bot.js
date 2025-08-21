@@ -1787,7 +1787,12 @@ async function processDataBundle(chatId, session, reference) {
         payment_method: session.paymentMethod || "paystack",
         status: "success",
         timestamp: new Date().toISOString(),
-        provider_response: result.data,
+        provider_transaction_id: result.data.transaction_code,
+        provider_response: {
+          status: "success",
+          message: result.data.message,
+          transaction_code: result.data.transaction_code
+        }
       })
 
       const successMessage = `✅ *DATA BUNDLE PURCHASE SUCCESSFUL*
@@ -1854,18 +1859,18 @@ async function purchaseDataBundle(phoneNumber, networkId, volume, retryCount = 0
     console.log(`Attempting to purchase bundle: Phone=${phone}, Network=${networkId}, Volume=${volume}`)
 
     const response = await axios.post(
-      `${FOSTER_BASE_URL}/orders/purchase-data`,
+      `${FOSTER_BASE_URL}/buy-other-package`,
       {
-        phone: phone,
+        recipient_msisdn: phone,
         network_id: networkId,
-        volume: volume,
+        shared_bundle: volume
       },
       {
         headers: {
-          Authorization: `Bearer ${FOSTER_API_KEY}`,
-          "Content-Type": "application/json",
+          "x-api-key": FOSTER_API_KEY,
+          "Accept": "application/json",
+          "Content-Type": "application/json"
         },
-        // Add timeout to prevent hanging requests
         timeout: 30000,
       },
     )
@@ -1876,43 +1881,40 @@ async function purchaseDataBundle(phoneNumber, networkId, volume, retryCount = 0
       throw new Error("Empty response from Foster API")
     }
 
-    return {
-      status: response.data.success ? "success" : "failed",
-      message: response.data.message || "Purchase completed",
-      data: response.data,
+    // According to API docs, success response has success: true
+    if (response.data.success === true) {
+      return {
+        status: "success",
+        message: response.data.message || "Package purchased successfully",
+        data: {
+          transaction_code: response.data.transaction_code,
+          ...response.data
+        }
+      }
+    } else {
+      // API returns 400 for insufficient balance, 404 for package not found
+      throw new Error(response.data.message || "Purchase failed")
     }
   } catch (error) {
     console.error("Foster API error:", error)
 
-    // If we get a 404, the endpoint might be wrong
-    if (error.response?.status === 404) {
-      console.log("Attempting fallback to legacy endpoint...")
-      try {
-        const response = await axios.post(
-          `${FOSTER_BASE_URL}/data`,
-          {
-            phone: phone,
-            network_id: networkId,
-            volume: volume,
-          },
-          {
-            headers: {
-              Authorization: `Bearer ${FOSTER_API_KEY}`,
-              "Content-Type": "application/json",
-            },
-            timeout: 30000,
+    // Handle specific API error cases
+    if (error.response) {
+      const errorMsg = error.response.data?.message;
+      
+      switch (error.response.status) {
+        case 403:
+          throw new Error("This network is not available for purchase")
+        case 404:
+          throw new Error("Package not found or out of stock")
+        case 400:
+          if (errorMsg?.toLowerCase().includes("insufficient")) {
+            throw new Error("Insufficient balance in vendor account")
           }
-        )
-
-        console.log("Foster API Legacy Response:", response.data)
-
-        return {
-          status: response.data.success ? "success" : "failed",
-          message: response.data.message || "Purchase completed",
-          data: response.data,
-        }
-      } catch (fallbackError) {
-        console.error("Foster API fallback error:", fallbackError)
+          throw new Error(errorMsg || "Invalid request parameters")
+        default:
+          console.error("Foster API Error Response:", error.response.data)
+          throw new Error(errorMsg || "Service temporarily unavailable")
       }
     }
 
