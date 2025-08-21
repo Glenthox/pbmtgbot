@@ -407,6 +407,11 @@ function isValidGhanaNumber(phone) {
   return /^\+233[2-9]\d{8}$/.test(formatted)
 }
 
+function validateMinimumOrder(amount) {
+  const MINIMUM_ORDER = 1.0 // 1 GHC minimum
+  return amount >= MINIMUM_ORDER
+}
+
 // Bot command handlers
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id
@@ -757,6 +762,32 @@ async function handlePhoneNumberInput(chatId, phoneNumber, session) {
   userSessions.set(chatId, session)
 
   const { selectedPackage } = session
+  await showPackageConfirmation(chatId, selectedPackage, formattedPhone)
+}
+
+async function showPackageConfirmation(chatId, selectedPackage, phoneNumber) {
+  if (!validateMinimumOrder(selectedPackage.priceGHS)) {
+    const errorMessage = `❌ *MINIMUM ORDER REQUIREMENT*
+
+The minimum order amount is ₵1.00
+Selected package: ₵${selectedPackage.priceGHS.toFixed(2)}
+
+Please select a package worth at least ₵1.00`
+
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: "🔙 SELECT PACKAGE", callback_data: `network_${selectedPackage.network}` }],
+        [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }],
+      ],
+    }
+
+    bot.sendMessage(chatId, errorMessage, {
+      parse_mode: "Markdown",
+      reply_markup: keyboard,
+    })
+    return
+  }
+
   const profile = await getUserProfile(chatId)
   const walletBalance = profile?.wallet || 0
 
@@ -775,7 +806,7 @@ async function handlePhoneNumberInput(chatId, phoneNumber, session) {
 
 🌐 *NETWORK:* ${selectedPackage.networkName.toUpperCase()}
 📊 *PACKAGE:* ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}
-📱 *PHONE NUMBER:* ${formattedPhone}
+📱 *PHONE NUMBER:* ${phoneNumber}
 
 💰 *WALLET BALANCE:* ₵${walletBalance.toFixed(2)}
 
@@ -1312,7 +1343,7 @@ Need help? We're here for you!
 
 *CONTACT METHODS:*
 📧 Email: support@pbmhub.com
-📱 WhatsApp: +233 XX XXX XXXX
+📱 Telegram: @glenthox
 ⏰ Hours: 24/7 Support
 
 *COMMON ISSUES:*
@@ -1323,7 +1354,7 @@ Need help? We're here for you!
 *RESPONSE TIME:*
 We typically respond within 30 minutes during business hours.
 
-For urgent issues, please use WhatsApp for faster response.`
+For urgent issues, please contact @glenthox on Telegram for faster response.`
 
   const keyboard = {
     inline_keyboard: [
@@ -1753,3 +1784,143 @@ process.on("uncaughtException", (error) => {
 })
 
 console.log("🤖 PBM Hub Ghana Bot is running...")
+
+bot.on("callback_query", async (callbackQuery) => {
+  const chatId = callbackQuery.message.chat.id
+  const messageId = callbackQuery.message.message_id
+  const data = callbackQuery.data
+
+  try {
+    await bot.answerCallbackQuery(callbackQuery.id)
+
+    if (data === "pay_with_wallet") {
+      const session = userSessions.get(chatId)
+      if (!session || !session.selectedPackage) {
+        await bot.editMessageText("❌ Session expired. Please start again.", {
+          chat_id: chatId,
+          message_id: messageId,
+        })
+        return
+      }
+
+      const profile = await getUserProfile(chatId)
+      const walletBalance = profile?.wallet || 0
+      const packagePrice = session.selectedPackage.priceGHS
+
+      if (!validateMinimumOrder(packagePrice)) {
+        await bot.editMessageText(`❌ Minimum order amount is ₵1.00\nPackage price: ₵${packagePrice.toFixed(2)}`, {
+          chat_id: chatId,
+          message_id: messageId,
+        })
+        return
+      }
+
+      if (walletBalance < packagePrice) {
+        const insufficientMessage = `❌ *INSUFFICIENT WALLET BALANCE*
+
+💰 *WALLET BALANCE:* ₵${walletBalance.toFixed(2)}
+💳 *REQUIRED AMOUNT:* ₵${packagePrice.toFixed(2)}
+💸 *SHORTFALL:* ₵${(packagePrice - walletBalance).toFixed(2)}
+
+Please deposit more funds or use Paystack payment.`
+
+        const keyboard = {
+          inline_keyboard: [
+            [
+              { text: "💳 DEPOSIT", callback_data: "deposit_wallet" },
+              { text: "💳 PAYSTACK", callback_data: "pay_with_paystack" },
+            ],
+            [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }],
+          ],
+        }
+
+        await bot.editMessageText(insufficientMessage, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: "Markdown",
+          reply_markup: keyboard,
+        })
+        return
+      }
+
+      try {
+        // Deduct from wallet
+        await deductFromWallet(chatId, packagePrice)
+
+        // Process the data bundle purchase
+        const result = await purchaseDataBundle(
+          session.phoneNumber,
+          session.selectedPackage.network_id,
+          session.selectedPackage.volume,
+        )
+
+        if (result.status === "success") {
+          const orderId = `wallet_${Date.now()}_${chatId}`
+
+          // Save successful order
+          await saveOrder(chatId, orderId, {
+            amount: packagePrice,
+            bundle: `${session.selectedPackage.volumeGB}GB`,
+            network: session.selectedPackage.network,
+            phone_number: session.phoneNumber,
+            payment_method: "wallet",
+            status: "success",
+            timestamp: new Date().toISOString(),
+          })
+
+          const successMessage = `✅ *WALLET PAYMENT SUCCESSFUL*
+
+🌐 *NETWORK:* ${session.selectedPackage.networkName.toUpperCase()}
+📊 *PACKAGE:* ${session.selectedPackage.volumeGB}GB | ₵${packagePrice.toFixed(2)}
+📱 *PHONE:* ${session.phoneNumber}
+📋 *ORDER ID:* ${orderId}
+💰 *NEW BALANCE:* ₵${(walletBalance - packagePrice).toFixed(2)}
+
+Your data bundle has been successfully delivered!`
+
+          const keyboard = {
+            inline_keyboard: [
+              [
+                { text: "🔄 BUY MORE", callback_data: "back_to_networks" },
+                { text: "📋 MY ORDERS", callback_data: "my_orders" },
+              ],
+              [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }],
+            ],
+          }
+
+          await bot.editMessageText(successMessage, {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: "Markdown",
+            reply_markup: keyboard,
+          })
+        } else {
+          // Refund wallet if purchase failed
+          await updateWallet(chatId, packagePrice)
+
+          await bot.editMessageText(
+            "❌ Purchase failed. Your wallet has been refunded. Please try again or contact support.",
+            {
+              chat_id: chatId,
+              message_id: messageId,
+            },
+          )
+        }
+
+        // Clear session
+        userSessions.delete(chatId)
+      } catch (error) {
+        console.error("Wallet payment error:", error)
+        await bot.editMessageText("❌ Payment failed. Please try again or contact support.", {
+          chat_id: chatId,
+          message_id: messageId,
+        })
+      }
+    }
+
+    // ... existing code for other callback queries ...
+  } catch (error) {
+    console.error("Callback query error:", error)
+    await bot.answerCallbackQuery(callbackQuery.id, { text: "❌ An error occurred. Please try again." })
+  }
+})
