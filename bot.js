@@ -100,6 +100,93 @@ async function findOrderById(userId, orderId) {
 const app = express()
 app.use(bodyParser.json())
 
+// Serve payment verification HTML page
+const paymentVerificationHtml = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Payment Verification - DataBot Ghana</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .container { background: white; border-radius: 20px; box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1); padding: 40px; max-width: 500px; width: 100%; text-align: center; position: relative; overflow: hidden; }
+    .container::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 5px; background: linear-gradient(90deg, #1e3c72, #2a5298, #1e3c72); }
+    .logo { width: 80px; height: 80px; background: linear-gradient(135deg, #1e3c72, #2a5298); border-radius: 50%; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; font-size: 32px; color: white; }
+    h1 { color: #1e3c72; font-size: 28px; margin-bottom: 10px; font-weight: 700; }
+    .subtitle { color: #666; font-size: 16px; margin-bottom: 30px; }
+    .status-card { background: #f8f9ff; border: 2px solid #e3e8ff; border-radius: 15px; padding: 30px; margin: 20px 0; }
+    .status-icon { width: 60px; height: 60px; border-radius: 50%; margin: 0 auto 15px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+    .loading { background: #fff3cd; color: #856404; animation: pulse 2s infinite; }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+    @keyframes pulse { 0% { transform: scale(1); } 50% { transform: scale(1.05); } 100% { transform: scale(1); } }
+    .spinner { width: 24px; height: 24px; border: 3px solid #f3f3f3; border-top: 3px solid #1e3c72; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    .status-message { font-size: 18px; font-weight: 600; margin-bottom: 10px; }
+    .status-details { font-size: 14px; color: #666; line-height: 1.5; }
+    .reference { background: #e3f2fd; border: 1px solid #bbdefb; border-radius: 8px; padding: 15px; margin: 20px 0; font-family: 'Courier New', monospace; font-size: 14px; color: #1565c0; word-break: break-all; }
+    .btn { background: linear-gradient(135deg, #1e3c72, #2a5298); color: white; border: none; padding: 15px 30px; border-radius: 25px; font-size: 16px; font-weight: 600; cursor: pointer; transition: all 0.3s ease; text-decoration: none; display: inline-block; margin: 10px; }
+    .btn:hover { transform: translateY(-2px); box-shadow: 0 10px 20px rgba(30, 60, 114, 0.3); }
+    .btn-secondary { background: white; color: #1e3c72; border: 2px solid #1e3c72; }
+    .btn-secondary:hover { background: #1e3c72; color: white; }
+    .footer { margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee; color: #999; font-size: 12px; }
+    .ghana-flag { display: inline-block; margin: 0 5px; }
+    @media (max-width: 600px) { .container { padding: 30px 20px; margin: 10px; } h1 { font-size: 24px; } .btn { padding: 12px 25px; font-size: 14px; } }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo">📱</div>
+    <h1>DataBot Ghana</h1>
+    <p class="subtitle">Payment Verification <span class="ghana-flag">🇬🇭</span></p>
+    <div class="status-card">
+      <div class="status-icon loading" id="statusIcon">
+        <div class="spinner"></div>
+      </div>
+      <div class="status-message" id="statusMessage">Verifying Payment...</div>
+      <div class="status-details" id="statusDetails">Please wait while we confirm your payment with Paystack.</div>
+    </div>
+    <div class="reference" id="referenceDiv" style="display: none;">
+      <strong>Transaction Reference:</strong><br>
+      <span id="referenceText"></span>
+    </div>
+    <div id="actionButtons" style="display: none;">
+      <a href="https://t.me/pbmhub_bot" class="btn" id="continueBtn">Continue to Telegram</a>
+    </div>
+    <div class="footer">
+      <p>Secure payments powered by Paystack <span class="ghana-flag">🇬🇭</span></p>
+      <p>© 2024 DataBot Ghana. All rights reserved.</p>
+    </div>
+  </div>
+  <script>
+    // Get reference from URL parameters
+    const urlParams = new URLSearchParams(window.location.search);
+    const reference = urlParams.get('reference');
+    if (reference) {
+      document.getElementById('referenceDiv').style.display = 'block';
+      document.getElementById('referenceText').textContent = reference;
+    }
+    // Show instructions
+    setTimeout(() => {
+      document.getElementById('statusIcon').className = 'status-icon success';
+      document.getElementById('statusIcon').innerHTML = '✅';
+      document.getElementById('statusMessage').textContent = 'Payment Completed!';
+      document.getElementById('statusDetails').innerHTML = 'Your payment has been received.<br><b>Return to Telegram and click "I PAID" in the bot to complete your purchase or credit your wallet.</b>';
+      document.getElementById('actionButtons').style.display = 'block';
+    }, 2500);
+  </script>
+</body>
+</html>`;
+
+// Route to serve payment verification page
+app.get("/payment-success", (req, res) => {
+  const reference = req.query.reference || req.query.trxref || "";
+  res.setHeader("Content-Type", "text/html");
+  // Inject reference into HTML
+  res.send(paymentVerificationHtml.replace(/reference\s*=\s*urlParams.get\('reference'\)/, `reference = '${reference}'`));
+});
+
 const PORT = process.env.PORT || 3000
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "https://pbmtgbot.onrender.com"
 
@@ -405,11 +492,6 @@ function formatPhoneNumber(phone) {
 function isValidGhanaNumber(phone) {
   const formatted = formatPhoneNumber(phone)
   return /^\+233[2-9]\d{8}$/.test(formatted)
-}
-
-function validateMinimumOrder(amount) {
-  const MINIMUM_ORDER = 1.0 // 1 GHC minimum
-  return amount >= MINIMUM_ORDER
 }
 
 // Bot command handlers
@@ -762,32 +844,6 @@ async function handlePhoneNumberInput(chatId, phoneNumber, session) {
   userSessions.set(chatId, session)
 
   const { selectedPackage } = session
-  await showPackageConfirmation(chatId, selectedPackage, formattedPhone)
-}
-
-async function showPackageConfirmation(chatId, selectedPackage, phoneNumber) {
-  if (!validateMinimumOrder(selectedPackage.priceGHS)) {
-    const errorMessage = `❌ *MINIMUM ORDER REQUIREMENT*
-
-The minimum order amount is ₵1.00
-Selected package: ₵${selectedPackage.priceGHS.toFixed(2)}
-
-Please select a package worth at least ₵1.00`
-
-    const keyboard = {
-      inline_keyboard: [
-        [{ text: "🔙 SELECT PACKAGE", callback_data: `network_${selectedPackage.network}` }],
-        [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }],
-      ],
-    }
-
-    bot.sendMessage(chatId, errorMessage, {
-      parse_mode: "Markdown",
-      reply_markup: keyboard,
-    })
-    return
-  }
-
   const profile = await getUserProfile(chatId)
   const walletBalance = profile?.wallet || 0
 
@@ -806,7 +862,7 @@ Please select a package worth at least ₵1.00`
 
 🌐 *NETWORK:* ${selectedPackage.networkName.toUpperCase()}
 📊 *PACKAGE:* ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}
-📱 *PHONE NUMBER:* ${phoneNumber}
+📱 *PHONE NUMBER:* ${formattedPhone}
 
 💰 *WALLET BALANCE:* ₵${walletBalance.toFixed(2)}
 
@@ -1343,7 +1399,7 @@ Need help? We're here for you!
 
 *CONTACT METHODS:*
 📧 Email: support@pbmhub.com
-📱 Telegram: @glenthox
+📱 WhatsApp: +233 XX XXX XXXX
 ⏰ Hours: 24/7 Support
 
 *COMMON ISSUES:*
@@ -1354,7 +1410,7 @@ Need help? We're here for you!
 *RESPONSE TIME:*
 We typically respond within 30 minutes during business hours.
 
-For urgent issues, please contact @glenthox on Telegram for faster response.`
+For urgent issues, please use WhatsApp for faster response.`
 
   const keyboard = {
     inline_keyboard: [
@@ -1376,20 +1432,16 @@ For urgent issues, please contact @glenthox on Telegram for faster response.`
 
 async function handlePaymentConfirmation(chatId, messageId, reference) {
   try {
-    // Log reference for debugging
-    console.log(`[PAYSTACK VERIFY] Reference:`, reference)
+    // Verify payment with Paystack
     const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
       headers: {
         Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
       },
     })
 
-    // Log Paystack response for debugging
-    console.log(`[PAYSTACK VERIFY] Response:`, response.data)
-
-    const paystackStatus = response.data.data?.status
-    if (response.data.status && paystackStatus === "success") {
+    if (response.data.status && response.data.data.status === "success") {
       const session = userSessions.get(chatId)
+
       if (!session) {
         await bot.editMessageText("❌ Session expired. Please start a new transaction.", {
           chat_id: chatId,
@@ -1400,13 +1452,16 @@ async function handlePaymentConfirmation(chatId, messageId, reference) {
         })
         return
       }
+
       if (session.type === "deposit") {
         await processWalletDeposit(chatId, session, reference, session.amount)
       } else if (session.type === "purchase") {
         await processDataBundle(chatId, session, reference)
       }
+
       // Clear session after successful processing
       userSessions.delete(chatId)
+
       await bot.editMessageText("✅ Payment verified and processed successfully!", {
         chat_id: chatId,
         message_id: messageId,
@@ -1414,26 +1469,14 @@ async function handlePaymentConfirmation(chatId, messageId, reference) {
           inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "back_to_main" }]],
         },
       })
-    } else if (paystackStatus === "pending" || paystackStatus === "send_otp" || paystackStatus === "processing") {
-      // Payment is not completed yet
-      await bot.editMessageText(
-        `⏳ Payment is still processing or pending.\n\nStatus: ${paystackStatus}\nReference: ${reference}\n\nIf you just paid, please wait 1-2 minutes and click 'I PAID' again.`,
-        {
-          chat_id: chatId,
-          message_id: messageId,
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: "🔄 I PAID (Retry)", callback_data: `confirm_${reference}` }],
-              [{ text: "🎧 Contact Support", callback_data: "support" }],
-            ],
-          },
-        },
-      )
     } else {
-      // Show more details if verification failed
-      let failReason = response.data.data?.gateway_response || response.data.data?.message || "Unknown reason"
       await bot.editMessageText(
-        `❌ Payment not found or failed.\n\nStatus: ${paystackStatus || "Unknown"}\nReference: ${reference}\nReason: ${failReason}\n\nIf you just paid, please wait 1-2 minutes and try again. If the problem persists, contact support.`,
+        `❌ Payment not found or failed. 
+
+Status: ${response.data.data?.status || "Unknown"}
+Reference: ${reference}
+
+Please ensure payment was completed and try again.`,
         {
           chat_id: chatId,
           message_id: messageId,
@@ -1447,32 +1490,11 @@ async function handlePaymentConfirmation(chatId, messageId, reference) {
       )
     }
   } catch (error) {
-    // Log error details for debugging
-    if (error.response) {
-      console.error("Payment verification error:", error.response.data)
-      // If Paystack returns 400, show a more helpful message
-      if (error.response.status === 400) {
-        await bot.editMessageText(
-          `❌ Verification failed: Invalid or expired reference, or payment not yet processed.\n\nReference: ${reference}\n\nPlease wait 1-2 minutes and try again. If the issue persists, contact support.`,
-          {
-            chat_id: chatId,
-            message_id: messageId,
-            reply_markup: {
-              inline_keyboard: [
-                [{ text: "🔄 Try Again", callback_data: `confirm_${reference}` }],
-                [{ text: "🎧 Contact Support", callback_data: "support" }],
-              ],
-            },
-          },
-        )
-        return
-      }
-    } else {
-      console.error("Payment verification error:", error)
-    }
-    let errorMsg = error.response?.data?.message || error.message
+    console.error("Payment verification error:", error)
     await bot.editMessageText(
-      `❌ Verification failed: ${errorMsg}\n\nThis may be due to an invalid or expired reference, or the payment is not yet processed.\n\nPlease wait 1-2 minutes and try again. If the issue persists, contact support.`,
+      `❌ Verification failed: ${error.message}
+
+Please try again or contact support if the issue persists.`,
       {
         chat_id: chatId,
         message_id: messageId,
@@ -1818,143 +1840,3 @@ process.on("uncaughtException", (error) => {
 })
 
 console.log("🤖 PBM Hub Ghana Bot is running...")
-
-bot.on("callback_query", async (callbackQuery) => {
-  const chatId = callbackQuery.message.chat.id
-  const messageId = callbackQuery.message.message_id
-  const data = callbackQuery.data
-
-  try {
-    await bot.answerCallbackQuery(callbackQuery.id)
-
-    if (data === "pay_with_wallet") {
-      const session = userSessions.get(chatId)
-      if (!session || !session.selectedPackage) {
-        await bot.editMessageText("❌ Session expired. Please start again.", {
-          chat_id: chatId,
-          message_id: messageId,
-        })
-        return
-      }
-
-      const profile = await getUserProfile(chatId)
-      const walletBalance = profile?.wallet || 0
-      const packagePrice = session.selectedPackage.priceGHS
-
-      if (!validateMinimumOrder(packagePrice)) {
-        await bot.editMessageText(`❌ Minimum order amount is ₵1.00\nPackage price: ₵${packagePrice.toFixed(2)}`, {
-          chat_id: chatId,
-          message_id: messageId,
-        })
-        return
-      }
-
-      if (walletBalance < packagePrice) {
-        const insufficientMessage = `❌ *INSUFFICIENT WALLET BALANCE*
-
-💰 *WALLET BALANCE:* ₵${walletBalance.toFixed(2)}
-💳 *REQUIRED AMOUNT:* ₵${packagePrice.toFixed(2)}
-💸 *SHORTFALL:* ₵${(packagePrice - walletBalance).toFixed(2)}
-
-Please deposit more funds or use Paystack payment.`
-
-        const keyboard = {
-          inline_keyboard: [
-            [
-              { text: "💳 DEPOSIT", callback_data: "deposit_wallet" },
-              { text: "💳 PAYSTACK", callback_data: "pay_with_paystack" },
-            ],
-            [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }],
-          ],
-        }
-
-        await bot.editMessageText(insufficientMessage, {
-          chat_id: chatId,
-          message_id: messageId,
-          parse_mode: "Markdown",
-          reply_markup: keyboard,
-        })
-        return
-      }
-
-      try {
-        // Deduct from wallet
-        await deductFromWallet(chatId, packagePrice)
-
-        // Process the data bundle purchase
-        const result = await purchaseDataBundle(
-          session.phoneNumber,
-          session.selectedPackage.network_id,
-          session.selectedPackage.volume,
-        )
-
-        if (result.status === "success") {
-          const orderId = `wallet_${Date.now()}_${chatId}`
-
-          // Save successful order
-          await saveOrder(chatId, orderId, {
-            amount: packagePrice,
-            bundle: `${session.selectedPackage.volumeGB}GB`,
-            network: session.selectedPackage.network,
-            phone_number: session.phoneNumber,
-            payment_method: "wallet",
-            status: "success",
-            timestamp: new Date().toISOString(),
-          })
-
-          const successMessage = `✅ *WALLET PAYMENT SUCCESSFUL*
-
-🌐 *NETWORK:* ${session.selectedPackage.networkName.toUpperCase()}
-📊 *PACKAGE:* ${session.selectedPackage.volumeGB}GB | ₵${packagePrice.toFixed(2)}
-📱 *PHONE:* ${session.phoneNumber}
-📋 *ORDER ID:* ${orderId}
-💰 *NEW BALANCE:* ₵${(walletBalance - packagePrice).toFixed(2)}
-
-Your data bundle has been successfully delivered!`
-
-          const keyboard = {
-            inline_keyboard: [
-              [
-                { text: "🔄 BUY MORE", callback_data: "back_to_networks" },
-                { text: "📋 MY ORDERS", callback_data: "my_orders" },
-              ],
-              [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }],
-            ],
-          }
-
-          await bot.editMessageText(successMessage, {
-            chat_id: chatId,
-            message_id: messageId,
-            parse_mode: "Markdown",
-            reply_markup: keyboard,
-          })
-        } else {
-          // Refund wallet if purchase failed
-          await updateWallet(chatId, packagePrice)
-
-          await bot.editMessageText(
-            "❌ Purchase failed. Your wallet has been refunded. Please try again or contact support.",
-            {
-              chat_id: chatId,
-              message_id: messageId,
-            },
-          )
-        }
-
-        // Clear session
-        userSessions.delete(chatId)
-      } catch (error) {
-        console.error("Wallet payment error:", error)
-        await bot.editMessageText("❌ Payment failed. Please try again or contact support.", {
-          chat_id: chatId,
-          message_id: messageId,
-        })
-      }
-    }
-
-    // ... existing code for other callback queries ...
-  } catch (error) {
-    console.error("Callback query error:", error)
-    await bot.answerCallbackQuery(callbackQuery.id, { text: "❌ An error occurred. Please try again." })
-  }
-})
