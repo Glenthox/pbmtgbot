@@ -4,6 +4,7 @@ const axios = require("axios")
 const crypto = require("crypto")
 const express = require("express")
 const bodyParser = require("body-parser")
+const path = require("path")
 
 // Configuration
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN
@@ -99,6 +100,7 @@ async function findOrderById(userId, orderId) {
 // Express server for webhook
 const app = express()
 app.use(bodyParser.json())
+app.use(express.static(path.join(__dirname, "public")))
 
 const PORT = process.env.PORT || 3000
 const WEBHOOK_URL = process.env.WEBHOOK_URL || "https://pbmtgbot.onrender.com"
@@ -152,6 +154,315 @@ app.post("/paystack/webhook", async (req, res) => {
   res.sendStatus(200)
 })
 
+app.get("/payment-success", (req, res) => {
+  const { reference, status, amount, type } = req.query
+
+  const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Verification - PBM Data Hub</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+        
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: #4CAF50;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 30px;
+            color: white;
+            font-size: 40px;
+        }
+        
+        .pending-icon {
+            background: #FF9800;
+        }
+        
+        .failed-icon {
+            background: #f44336;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 28px;
+        }
+        
+        .details {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .detail-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+        }
+        
+        .label {
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .value {
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .btn {
+            background: #667eea;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            margin: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+        
+        .btn-success {
+            background: #4CAF50;
+        }
+        
+        .btn-success:hover {
+            background: #45a049;
+        }
+        
+        .instructions {
+            background: #e3f2fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 5px;
+            text-align: left;
+        }
+        
+        .footer {
+            margin-top: 30px;
+            color: #666;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="success-icon ${status === "success" ? "" : status === "pending" ? "pending-icon" : "failed-icon"}">
+            ${status === "success" ? "✓" : status === "pending" ? "⏳" : "✗"}
+        </div>
+        
+        <h1>${status === "success" ? "Payment Successful!" : status === "pending" ? "Payment Pending" : "Payment Failed"}</h1>
+        
+        <div class="details">
+            <div class="detail-row">
+                <span class="label">Reference:</span>
+                <span class="value">${reference || "N/A"}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">Amount:</span>
+                <span class="value">₵${amount || "0.00"}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">Type:</span>
+                <span class="value">${type === "deposit" ? "Wallet Deposit" : "Bundle Purchase"}</span>
+            </div>
+            <div class="detail-row">
+                <span class="label">Status:</span>
+                <span class="value">${status === "success" ? "Completed" : status === "pending" ? "Processing" : "Failed"}</span>
+            </div>
+        </div>
+        
+        ${
+          status === "success"
+            ? `
+        <div class="instructions">
+            <strong>Next Steps:</strong><br>
+            ${
+              type === "deposit"
+                ? '1. Return to the bot<br>2. Click "I PAID" to verify and credit your wallet'
+                : '1. Return to the bot<br>2. Click "I PAID" to process your data bundle'
+            }
+        </div>
+        `
+            : ""
+        }
+        
+        <a href="https://t.me/pbmdatahub_bot" class="btn ${status === "success" ? "btn-success" : ""}">
+            Return to Bot
+        </a>
+        
+        <div class="footer">
+            <p>PBM Data Hub - Ghana's #1 Data Bundle Service</p>
+            <p>Need help? Contact @glenthox</p>
+        </div>
+    </div>
+    
+    <script>
+        // Auto redirect after 10 seconds
+        setTimeout(() => {
+            window.location.href = 'https://t.me/pbmdatahub_bot';
+        }, 10000);
+    </script>
+</body>
+</html>
+  `
+
+  res.send(html)
+})
+
+// app.get("/verify.html", (req, res) => {
+//   res.sendFile(path.join(__dirname, "public", "payment-success.html"))
+// })
+
+async function verifyPayment(chatId, messageId, reference) {
+  try {
+    console.log(`[v0] Verifying payment for reference: ${reference}`)
+
+    const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+        "Content-Type": "application/json",
+      },
+    })
+
+    console.log(`[v0] Paystack response status:`, response.data.status)
+    console.log(`[v0] Transaction status:`, response.data.data?.status)
+
+    if (response.data.status && response.data.data.status === "success") {
+      const session = userSessions.get(chatId)
+
+      if (!session) {
+        await bot.editMessageText("❌ Session expired. Please start a new transaction.", {
+          chat_id: chatId,
+          message_id: messageId,
+          reply_markup: {
+            inline_keyboard: [[{ text: "🏠 Start Over", callback_data: "back_to_main" }]],
+          },
+        })
+        return
+      }
+
+      console.log(`[v0] Processing ${session.type} for user ${chatId}`)
+
+      if (session.type === "deposit") {
+        await processWalletDeposit(chatId, session, reference, session.amount)
+      } else if (session.type === "purchase") {
+        await processDataBundle(chatId, session, reference)
+      }
+
+      // Clear session after successful processing
+      userSessions.delete(chatId)
+
+      await bot.editMessageText("✅ Payment verified and processed successfully!", {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: {
+          inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "back_to_main" }]],
+        },
+      })
+    } else {
+      const transactionStatus = response.data.data?.status || "Unknown"
+      console.log(`[v0] Payment verification failed. Status: ${transactionStatus}`)
+
+      await bot.editMessageText(
+        `❌ Payment verification failed. 
+
+Status: ${transactionStatus}
+Reference: ${reference}
+
+Please ensure payment was completed successfully and try again.`,
+        {
+          chat_id: chatId,
+          message_id: messageId,
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "🔄 Try Again", callback_data: `confirm_${reference}` }],
+              [{ text: "🎧 Contact Support @glenthox", url: "https://t.me/glenthox" }],
+            ],
+          },
+        },
+      )
+    }
+  } catch (error) {
+    console.error("[v0] Payment verification error:", error.response?.data || error.message)
+
+    let errorMessage = "Verification failed"
+    if (error.response?.status === 400) {
+      errorMessage = "Invalid payment reference"
+    } else if (error.response?.status === 401) {
+      errorMessage = "Authentication failed - please contact support"
+    } else if (error.response?.status === 404) {
+      errorMessage = "Transaction not found"
+    }
+
+    await bot.editMessageText(
+      `❌ ${errorMessage}
+
+Reference: ${reference}
+
+Please try again or contact support if the issue persists.`,
+      {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🔄 Try Again", callback_data: `confirm_${reference}` }],
+            [{ text: "🎧 Contact Support @glenthox", url: "https://t.me/glenthox" }],
+          ],
+        },
+      },
+    )
+  }
+}
+
 // User sessions storage
 const userSessions = new Map()
 
@@ -181,6 +492,7 @@ const dataPackages = {
       volumeGB: 3,
       priceGHS: 14.4,
       network: "mtn",
+      networkName: "MTN Ghana",
       networkName: "MTN Ghana",
       network_id: 1,
       volume: "3072",
@@ -407,6 +719,11 @@ function isValidGhanaNumber(phone) {
   return /^\+233[2-9]\d{8}$/.test(formatted)
 }
 
+function validateMinimumOrder(amount) {
+  const MINIMUM_ORDER = 1.0 // 1 GHC minimum
+  return amount >= MINIMUM_ORDER
+}
+
 // Bot command handlers
 bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id
@@ -517,7 +834,7 @@ bot.on("callback_query", async (query) => {
       await showSupport(chatId, messageId)
     } else if (data.startsWith("confirm_")) {
       const reference = data.split("_")[1]
-      await handlePaymentConfirmation(chatId, messageId, reference)
+      await verifyPayment(chatId, messageId, reference)
     } else if (data === "my_orders") {
       await showMyOrders(chatId, messageId)
     } else if (data.startsWith("show_more_orders")) {
@@ -687,7 +1004,7 @@ async function handleDepositAmountInput(chatId, text) {
         email: email,
         amount: Math.round(amount * 100), // Convert to kobo
         reference: reference,
-        callback_url: `${WEBHOOK_URL}/payment-success`,
+        callback_url: `${WEBHOOK_URL}/payment-success?reference=${reference}&amount=${amount}&type=deposit`,
         metadata: {
           user_id: chatId,
           type: "deposit",
@@ -713,7 +1030,7 @@ async function handleDepositAmountInput(chatId, text) {
         step: "payment_pending",
       })
 
-      const depositMessage = `💳 *WALLET DEPOSIT*
+      const depositMessage = `💳 WALLET DEPOSIT
 
 Amount: ₵${amount.toFixed(2)}
 Reference: ${reference}
@@ -721,7 +1038,7 @@ Reference: ${reference}
 Click the link below to complete your payment:
 ${paymentUrl}
 
-After payment, click "I PAID" to verify your transaction.`
+After successful payment, return here and click "I PAID" to verify your transaction.`
 
       const keyboard = {
         inline_keyboard: [
@@ -731,7 +1048,6 @@ After payment, click "I PAID" to verify your transaction.`
       }
 
       await bot.sendMessage(chatId, depositMessage, {
-        parse_mode: "Markdown",
         reply_markup: keyboard,
       })
     } else {
@@ -757,6 +1073,32 @@ async function handlePhoneNumberInput(chatId, phoneNumber, session) {
   userSessions.set(chatId, session)
 
   const { selectedPackage } = session
+  await showPackageConfirmation(chatId, selectedPackage, formattedPhone)
+}
+
+async function showPackageConfirmation(chatId, selectedPackage, phoneNumber) {
+  if (!validateMinimumOrder(selectedPackage.priceGHS)) {
+    const errorMessage = `❌ *MINIMUM ORDER REQUIREMENT*
+
+The minimum order amount is ₵1.00
+Selected package: ₵${selectedPackage.priceGHS.toFixed(2)}
+
+Please select a package worth at least ₵1.00`
+
+    const keyboard = {
+      inline_keyboard: [
+        [{ text: "🔙 SELECT PACKAGE", callback_data: `network_${selectedPackage.network}` }],
+        [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }],
+      ],
+    }
+
+    bot.sendMessage(chatId, errorMessage, {
+      parse_mode: "Markdown",
+      reply_markup: keyboard,
+    })
+    return
+  }
+
   const profile = await getUserProfile(chatId)
   const walletBalance = profile?.wallet || 0
 
@@ -775,7 +1117,7 @@ async function handlePhoneNumberInput(chatId, phoneNumber, session) {
 
 🌐 *NETWORK:* ${selectedPackage.networkName.toUpperCase()}
 📊 *PACKAGE:* ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}
-📱 *PHONE NUMBER:* ${formattedPhone}
+📱 *PHONE NUMBER:* ${phoneNumber}
 
 💰 *WALLET BALANCE:* ₵${walletBalance.toFixed(2)}
 
@@ -1312,7 +1654,7 @@ Need help? We're here for you!
 
 *CONTACT METHODS:*
 📧 Email: support@pbmhub.com
-📱 WhatsApp: +233 XX XXX XXXX
+📱 Telegram: @glenthox
 ⏰ Hours: 24/7 Support
 
 *COMMON ISSUES:*
@@ -1323,7 +1665,7 @@ Need help? We're here for you!
 *RESPONSE TIME:*
 We typically respond within 30 minutes during business hours.
 
-For urgent issues, please use WhatsApp for faster response.`
+For urgent issues, please contact @glenthox on Telegram for faster response.`
 
   const keyboard = {
     inline_keyboard: [
@@ -1341,85 +1683,6 @@ For urgent issues, please use WhatsApp for faster response.`
     parse_mode: "Markdown",
     reply_markup: keyboard,
   })
-}
-
-async function handlePaymentConfirmation(chatId, messageId, reference) {
-  try {
-    // Verify payment with Paystack
-    const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
-      headers: {
-        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-      },
-    })
-
-    if (response.data.status && response.data.data.status === "success") {
-      const session = userSessions.get(chatId)
-
-      if (!session) {
-        await bot.editMessageText("❌ Session expired. Please start a new transaction.", {
-          chat_id: chatId,
-          message_id: messageId,
-          reply_markup: {
-            inline_keyboard: [[{ text: "🏠 Start Over", callback_data: "back_to_main" }]],
-          },
-        })
-        return
-      }
-
-      if (session.type === "deposit") {
-        await processWalletDeposit(chatId, session, reference, session.amount)
-      } else if (session.type === "purchase") {
-        await processDataBundle(chatId, session, reference)
-      }
-
-      // Clear session after successful processing
-      userSessions.delete(chatId)
-
-      await bot.editMessageText("✅ Payment verified and processed successfully!", {
-        chat_id: chatId,
-        message_id: messageId,
-        reply_markup: {
-          inline_keyboard: [[{ text: "🏠 Main Menu", callback_data: "back_to_main" }]],
-        },
-      })
-    } else {
-      await bot.editMessageText(
-        `❌ Payment not found or failed. 
-
-Status: ${response.data.data?.status || "Unknown"}
-Reference: ${reference}
-
-Please ensure payment was completed and try again.`,
-        {
-          chat_id: chatId,
-          message_id: messageId,
-          reply_markup: {
-            inline_keyboard: [
-              [{ text: "🔄 Try Again", callback_data: `confirm_${reference}` }],
-              [{ text: "🎧 Contact Support", callback_data: "support" }],
-            ],
-          },
-        },
-      )
-    }
-  } catch (error) {
-    console.error("Payment verification error:", error)
-    await bot.editMessageText(
-      `❌ Verification failed: ${error.message}
-
-Please try again or contact support if the issue persists.`,
-      {
-        chat_id: chatId,
-        message_id: messageId,
-        reply_markup: {
-          inline_keyboard: [
-            [{ text: "🔄 Try Again", callback_data: `confirm_${reference}` }],
-            [{ text: "🎧 Contact Support", callback_data: "support" }],
-          ],
-        },
-      },
-    )
-  }
 }
 
 async function handlePaymentMethodSelection(chatId, messageId, method) {
@@ -1514,91 +1777,72 @@ Your data bundle has been delivered successfully!`
         },
       })
     }
-  } else if (method === "paystack") {
-    try {
-      const reference = `purchase_${chatId}_${Date.now()}`
-      const email = `user${chatId}@pbmhub.com`
+  } else {
+    // Direct Paystack payment
+    const reference = `purchase_${chatId}_${Date.now()}`
+    const email = `user${chatId}@pbmhub.com`
 
-      // Create Paystack payment link
-      const paystackResponse = await axios.post(
-        "https://api.paystack.co/transaction/initialize",
-        {
-          email: email,
-          amount: Math.round(selectedPackage.priceGHS * 100), // Convert to kobo
-          reference: reference,
-          callback_url: `${WEBHOOK_URL}/payment-success`,
-          metadata: {
-            user_id: chatId,
-            type: "purchase",
-            package_id: selectedPackage.id,
-            phone_number: session.phoneNumber,
-          },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
-            "Content-Type": "application/json",
-          },
-        },
-      )
-
-      if (paystackResponse.data.status) {
-        const paymentUrl = paystackResponse.data.data.authorization_url
-
-        // Update session with purchase info
-        userSessions.set(chatId, {
-          ...session,
+    // Create Paystack payment link
+    const paystackResponse = await axios.post(
+      "https://api.paystack.co/transaction/initialize",
+      {
+        email: email,
+        amount: Math.round(selectedPackage.priceGHS * 100), // Convert to kobo
+        reference: reference,
+        callback_url: `${WEBHOOK_URL}/payment-success?reference=${reference}&amount=${selectedPackage.priceGHS}&type=purchase`,
+        metadata: {
+          user_id: chatId,
           type: "purchase",
-          reference: reference,
-          paymentMethod: "paystack",
-          step: "payment_pending",
-        })
+          package_id: selectedPackage.id,
+          phone_number: session.phoneNumber,
+        },
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+          "Content-Type": "application/json",
+        },
+      },
+    )
 
-        const paymentMessage = `💳 *PAYMENT REQUIRED*
+    if (paystackResponse.data.status) {
+      const paymentUrl = paystackResponse.data.data.authorization_url
 
-🌐 *NETWORK:* ${selectedPackage.networkName.toUpperCase()}
-📊 *PACKAGE:* ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}
-📱 *PHONE:* ${session.phoneNumber}
-📋 *REFERENCE:* ${reference}
+      // Update session with purchase info
+      userSessions.set(chatId, {
+        type: "purchase",
+        selectedPackage: selectedPackage,
+        phoneNumber: session.phoneNumber,
+        reference: reference,
+        step: "payment_pending",
+      })
+
+      const purchaseMessage = `💳 BUNDLE PURCHASE
+
+Network: ${selectedPackage.networkName.toUpperCase()}
+Package: ${selectedPackage.volumeGB}GB | ₵${selectedPackage.priceGHS.toFixed(2)}
+Phone: ${session.phoneNumber}
+Reference: ${reference}
 
 Click the link below to complete your payment:
 ${paymentUrl}
 
-After payment, click "I PAID" to verify your transaction.`
+After successful payment, return here and click "I PAID" to process your bundle.`
 
-        const keyboard = {
-          inline_keyboard: [
-            [{ text: "✅ I PAID", callback_data: `confirm_${reference}` }],
-            [{ text: "🏠 Main Menu", callback_data: "back_to_main" }],
-          ],
-        }
-
-        await bot.editMessageText(paymentMessage, {
-          chat_id: chatId,
-          message_id: messageId,
-          parse_mode: "Markdown",
-          reply_markup: keyboard,
-        })
-      } else {
-        throw new Error("Failed to create payment link")
+      const keyboard = {
+        inline_keyboard: [
+          [{ text: "✅ I PAID", callback_data: `confirm_${reference}` }],
+          [{ text: "🏠 Main Menu", callback_data: "back_to_main" }],
+        ],
       }
-    } catch (error) {
-      console.error("Paystack payment error:", error)
-      await bot.editMessageText(
-        `❌ Failed to initialize payment: ${error.message}\n\nPlease try again or contact support.`,
-        {
-          chat_id: chatId,
-          message_id: messageId,
-          reply_markup: {
-            inline_keyboard: [
-              [
-                { text: "🔄 TRY AGAIN", callback_data: `package_${selectedPackage.id}` },
-                { text: "🎧 SUPPORT", callback_data: "support" },
-              ],
-            ],
-          },
-        },
-      )
+
+      await bot.editMessageText(purchaseMessage, {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: keyboard,
+      })
+    } else {
+      throw new Error("Failed to create payment link")
     }
   }
 
@@ -1753,3 +1997,143 @@ process.on("uncaughtException", (error) => {
 })
 
 console.log("🤖 PBM Hub Ghana Bot is running...")
+
+bot.on("callback_query", async (callbackQuery) => {
+  const chatId = callbackQuery.message.chat.id
+  const messageId = callbackQuery.message.message_id
+  const data = callbackQuery.data
+
+  try {
+    await bot.answerCallbackQuery(callbackQuery.id)
+
+    if (data === "pay_with_wallet") {
+      const session = userSessions.get(chatId)
+      if (!session || !session.selectedPackage) {
+        await bot.editMessageText("❌ Session expired. Please start again.", {
+          chat_id: chatId,
+          message_id: messageId,
+        })
+        return
+      }
+
+      const profile = await getUserProfile(chatId)
+      const walletBalance = profile?.wallet || 0
+      const packagePrice = session.selectedPackage.priceGHS
+
+      if (!validateMinimumOrder(packagePrice)) {
+        await bot.editMessageText(`❌ Minimum order amount is ₵1.00\nPackage price: ₵${packagePrice.toFixed(2)}`, {
+          chat_id: chatId,
+          message_id: messageId,
+        })
+        return
+      }
+
+      if (walletBalance < packagePrice) {
+        const insufficientMessage = `❌ *INSUFFICIENT WALLET BALANCE*
+
+💰 *WALLET BALANCE:* ₵${walletBalance.toFixed(2)}
+💳 *REQUIRED AMOUNT:* ₵${packagePrice.toFixed(2)}
+💸 *SHORTFALL:* ₵${(packagePrice - walletBalance).toFixed(2)}
+
+Please deposit more funds or use Paystack payment.`
+
+        const keyboard = {
+          inline_keyboard: [
+            [
+              { text: "💳 DEPOSIT", callback_data: "deposit_wallet" },
+              { text: "💳 PAYSTACK", callback_data: "pay_with_paystack" },
+            ],
+            [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }],
+          ],
+        }
+
+        await bot.editMessageText(insufficientMessage, {
+          chat_id: chatId,
+          message_id: messageId,
+          parse_mode: "Markdown",
+          reply_markup: keyboard,
+        })
+        return
+      }
+
+      try {
+        // Deduct from wallet
+        await deductFromWallet(chatId, packagePrice)
+
+        // Process the data bundle purchase
+        const result = await purchaseDataBundle(
+          session.phoneNumber,
+          session.selectedPackage.network_id,
+          session.selectedPackage.volume,
+        )
+
+        if (result.status === "success") {
+          const orderId = `wallet_${Date.now()}_${chatId}`
+
+          // Save successful order
+          await saveOrder(chatId, orderId, {
+            amount: packagePrice,
+            bundle: `${session.selectedPackage.volumeGB}GB`,
+            network: session.selectedPackage.network,
+            phone_number: session.phoneNumber,
+            payment_method: "wallet",
+            status: "success",
+            timestamp: new Date().toISOString(),
+          })
+
+          const successMessage = `✅ *WALLET PAYMENT SUCCESSFUL*
+
+🌐 *NETWORK:* ${session.selectedPackage.networkName.toUpperCase()}
+📊 *PACKAGE:* ${session.selectedPackage.volumeGB}GB | ₵${packagePrice.toFixed(2)}
+📱 *PHONE:* ${session.phoneNumber}
+📋 *ORDER ID:* ${orderId}
+💰 *NEW BALANCE:* ₵${(walletBalance - packagePrice).toFixed(2)}
+
+Your data bundle has been successfully delivered!`
+
+          const keyboard = {
+            inline_keyboard: [
+              [
+                { text: "🔄 BUY MORE", callback_data: "back_to_networks" },
+                { text: "📋 MY ORDERS", callback_data: "my_orders" },
+              ],
+              [{ text: "🏠 MAIN MENU", callback_data: "back_to_main" }],
+            ],
+          }
+
+          await bot.editMessageText(successMessage, {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: "Markdown",
+            reply_markup: keyboard,
+          })
+        } else {
+          // Refund wallet if purchase failed
+          await updateWallet(chatId, packagePrice)
+
+          await bot.editMessageText(
+            "❌ Purchase failed. Your wallet has been refunded. Please try again or contact support.",
+            {
+              chat_id: chatId,
+              message_id: messageId,
+            },
+          )
+        }
+
+        // Clear session
+        userSessions.delete(chatId)
+      } catch (error) {
+        console.error("Wallet payment error:", error)
+        await bot.editMessageText("❌ Payment failed. Please try again or contact support.", {
+          chat_id: chatId,
+          message_id: messageId,
+        })
+      }
+    }
+
+    // ... existing code for other callback queries ...
+  } catch (error) {
+    console.error("Callback query error:", error)
+    await bot.answerCallbackQuery(callbackQuery.id, { text: "❌ An error occurred. Please try again." })
+  }
+})
