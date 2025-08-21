@@ -795,26 +795,47 @@ async function handleFindOrderInput(chatId, orderId) {
 async function handleDepositAmountInput(chatId, text) {
   const amount = Number.parseFloat(text)
 
-  if (isNaN(amount) || amount < 5) {
-    bot.sendMessage(chatId, "❌ Invalid amount. Please enter a valid amount (minimum ₵5.00):")
+  // Check minimum and maximum deposit limits
+  if (isNaN(amount) || amount < 0.5) {
+    bot.sendMessage(chatId, "❌ Invalid amount. Please enter a valid amount (minimum ₵0.50):")
     return
   }
+  if (amount > 1000) {
+    bot.sendMessage(chatId, "❌ Maximum deposit amount is ₵1,000.00. Please enter a smaller amount:")
+    return
+  }
+
+  // Calculate service charge (2%)
+  const serviceCharge = amount * 0.02
+  const totalAmount = amount + serviceCharge
 
   try {
     const reference = `deposit_${chatId}_${Date.now()}`
     const email = `user${chatId}@pbmhub.com`
 
+    // Show charge breakdown before proceeding
+    const confirmMessage = `💰 *DEPOSIT DETAILS*
+
+Amount: ₵${amount.toFixed(2)}
+Service Charge (2%): ₵${serviceCharge.toFixed(2)}
+Total to Pay: ₵${totalAmount.toFixed(2)}
+
+You will receive: ₵${amount.toFixed(2)} in your wallet.`
+
+    await bot.sendMessage(chatId, confirmMessage, { parse_mode: "Markdown" })
+
     const paystackResponse = await axios.post(
       "https://api.paystack.co/transaction/initialize",
       {
         email: email,
-        amount: Math.round(amount * 100), // Convert to kobo
+        amount: Math.round(totalAmount * 100), // Convert to kobo, including service charge
         reference: reference,
         callback_url: `${WEBHOOK_URL}/payment-success`,
         metadata: {
           user_id: chatId,
           type: "deposit",
-          amount: amount,
+          amount: amount, // Store original amount without service charge
+          service_charge: serviceCharge,
         },
       },
       {
@@ -1143,9 +1164,15 @@ async function initiateWalletDeposit(chatId, messageId) {
 
   const depositMessage = `💳 *WALLET DEPOSIT*
 
-Enter the amount you want to deposit (minimum ₵5.00):
+Enter the amount you want to deposit:
 
-Example: 10 or 25.50`
+• Minimum: ₵0.50
+• Maximum: ₵1,000.00
+• Service Charge: 2%
+
+Example: 10 or 25.50
+
+Note: A 2% service charge will be added to your deposit amount.`
 
   await bot.editMessageText(depositMessage, {
     chat_id: chatId,
