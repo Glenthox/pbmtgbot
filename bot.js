@@ -1036,7 +1036,7 @@ async function initiatePaystackPayment(chatId, session) {
       }
       await saveTransaction(chatId, reference, txnData)
 
-      const message = `*PAYSTACK PAYMENT*
+      const message = `*💳 PAYSTACK PAYMENT*
 
 NETWORK: ${session.network.toUpperCase()}
 PACKAGE: ${session.package.volumeGB}GB | ₵${session.package.priceGHS.toFixed(2)}
@@ -1044,17 +1044,17 @@ PHONE: ${session.phoneNumber}
 AMOUNT: ₵${session.package.priceGHS.toFixed(2)}
 REFERENCE: ${reference}
 
-SELECT AN OPTION BELOW TO CONTINUE:`
+🔗 Click the link below to make payment:
+${paymentUrl}
+
+After payment, click "I PAID" to verify and receive your bundle:`
 
       const keyboard = {
         inline_keyboard: [
+          [{ text: "✅ I PAID", callback_data: `confirm_${reference}` }],
           [
-            { text: "💳 PAY NOW", url: paymentUrl },
-            { text: "✅ I PAID", callback_data: `confirm_${reference}` },
-          ],
-          [
-            { text: "CANCEL", callback_data: "back_to_networks" },
-            { text: "HELP", callback_data: "help" },
+            { text: "🔄 CANCEL", callback_data: "back_to_networks" },
+            { text: "🎧 HELP", callback_data: "help" },
           ],
         ],
       }
@@ -1062,20 +1062,24 @@ SELECT AN OPTION BELOW TO CONTINUE:`
       await bot.sendMessage(chatId, message, {
         parse_mode: "Markdown",
         reply_markup: keyboard,
+        disable_web_page_preview: false,
       })
     } else {
       throw new Error("Failed to initialize payment")
     }
   } catch (error) {
     console.error("Paystack payment initialization error:", error)
-    await bot.sendMessage(chatId, `❌ Failed to initialize payment: ${error.message}`)
+    await bot.sendMessage(
+      chatId,
+      `❌ Failed to initialize payment: ${error.message}\n\nPlease try again or contact support.`,
+    )
   }
 }
 
 async function processWalletDeposit(chatId, session) {
   try {
-    const reference = generateDepositReference()
-    const amount = Math.round(session.depositAmount * 100) // Convert to kobo
+    const reference = generateReference()
+    const amount = Math.round(session.depositAmount * 100)
 
     const paymentData = {
       email: `user${chatId}@pbmhub.com`,
@@ -1112,19 +1116,22 @@ async function processWalletDeposit(chatId, session) {
       }
       await saveTransaction(chatId, reference, txnData)
 
-      const message = `*💳 WALLET DEPOSIT*
+      const message = `*💰 WALLET DEPOSIT*
 
 Amount: ₵${session.depositAmount.toFixed(2)}
 Reference: ${reference}
 
-Click PAY NOW to complete your deposit:`
+🔗 Click the link below to make payment:
+${paymentUrl}
+
+After payment, click "I PAID" to verify and credit your wallet:`
 
       const keyboard = {
         inline_keyboard: [
-          [{ text: "💳 PAY NOW", url: paymentUrl }],
+          [{ text: "✅ I PAID", callback_data: `confirm_deposit_${reference}` }],
           [
-            { text: "💰 WALLET MENU", callback_data: "wallet_menu" },
-            { text: "🏠 MAIN MENU", callback_data: "back_to_main" },
+            { text: "🔄 CANCEL", callback_data: "wallet_menu" },
+            { text: "🎧 HELP", callback_data: "help" },
           ],
         ],
       }
@@ -1132,17 +1139,184 @@ Click PAY NOW to complete your deposit:`
       await bot.sendMessage(chatId, message, {
         parse_mode: "Markdown",
         reply_markup: keyboard,
+        disable_web_page_preview: false,
       })
 
-      userSessions.delete(chatId)
+      session.depositReference = reference
+      userSessions.set(chatId, session)
     } else {
-      throw new Error("Failed to initialize deposit")
+      throw new Error("Failed to initialize deposit payment")
     }
   } catch (error) {
-    console.error("Wallet deposit error:", error)
-    await bot.sendMessage(chatId, `❌ Failed to initialize deposit: ${error.message}`)
+    console.error("Wallet deposit initialization error:", error)
+    await bot.sendMessage(
+      chatId,
+      `❌ Failed to initialize deposit: ${error.message}\n\nPlease try again or contact support.`,
+    )
   }
 }
+
+async function verifyPaystackPayment(chatId, messageId, reference, isDeposit = false) {
+  try {
+    await bot.editMessageText("🔍 Verifying your payment... Please wait.", {
+      chat_id: chatId,
+      message_id: messageId,
+    })
+
+    await new Promise((resolve) => setTimeout(resolve, 2000))
+
+    const response = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+      headers: {
+        Authorization: `Bearer ${PAYSTACK_SECRET_KEY}`,
+      },
+      timeout: 15000,
+    })
+
+    if (response.data.status && response.data.data.status === "success") {
+      const paymentData = response.data.data
+      const session = userSessions.get(chatId)
+
+      if (isDeposit) {
+        const expectedAmount = Math.round(session.depositAmount * 100)
+
+        if (paymentData.amount !== expectedAmount) {
+          await bot.editMessageText("❌ Payment amount mismatch. Please contact support.", {
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: {
+              inline_keyboard: [[{ text: "🎧 Contact Support", callback_data: "support" }]],
+            },
+          })
+          return
+        }
+
+        // Credit wallet
+        await updateWallet(chatId, session.depositAmount)
+
+        // Update transaction status
+        await firebaseUpdate(`users/${chatId}/transactions/${reference}`, {
+          status: "success",
+          updated_at: new Date().toISOString(),
+        })
+
+        await bot.editMessageText(
+          `✅ *DEPOSIT SUCCESSFUL*
+
+Amount: ₵${session.depositAmount.toFixed(2)}
+Reference: ${reference}
+Status: Completed
+
+Your wallet has been credited successfully!`,
+          {
+            chat_id: chatId,
+            message_id: messageId,
+            parse_mode: "Markdown",
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "💰 View Wallet", callback_data: "wallet_menu" }],
+                [{ text: "🏠 Main Menu", callback_data: "main_menu" }],
+              ],
+            },
+          },
+        )
+
+        // Clear session
+        userSessions.delete(chatId)
+        return
+      } else {
+        const expectedAmount = Math.round(session.package.priceGHS * 100)
+
+        if (paymentData.amount !== expectedAmount) {
+          await bot.editMessageText("❌ Payment amount mismatch. Please contact support.", {
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: {
+              inline_keyboard: [[{ text: "🎧 Contact Support", callback_data: "support" }]],
+            },
+          })
+          return
+        }
+      }
+
+      // Update transaction status
+      await firebaseUpdate(`users/${chatId}/transactions/${reference}`, {
+        status: "success",
+        updated_at: new Date().toISOString(),
+      })
+
+      await bot.editMessageText(`✅ Payment verified! Processing your bundle...`, {
+        chat_id: chatId,
+        message_id: messageId,
+      })
+
+      await processDataBundle(chatId, session, reference)
+    } else {
+      await bot.editMessageText(
+        `❌ Payment not found or failed. 
+
+Status: ${response.data.data?.status || "Unknown"}
+Reference: ${reference}
+
+Please ensure payment was completed and try again.`,
+        {
+          chat_id: chatId,
+          message_id: messageId,
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: "🔄 Try Again", callback_data: `confirm_${reference}` }],
+              [{ text: "🎧 Contact Support", callback_data: "support" }],
+            ],
+          },
+        },
+      )
+    }
+  } catch (error) {
+    console.error("Payment verification error:", error)
+    await bot.editMessageText(
+      `❌ Verification failed: ${error.message}
+
+Please try again or contact support if the issue persists.`,
+      {
+        chat_id: chatId,
+        message_id: messageId,
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "🔄 Try Again", callback_data: `confirm_${reference}` }],
+            [{ text: "🎧 Contact Support", callback_data: "support" }],
+          ],
+        },
+      },
+    )
+  }
+}
+
+bot.on("callback_query", async (callbackQuery) => {
+  const chatId = callbackQuery.message.chat.id
+  const messageId = callbackQuery.message.message_id
+  const data = callbackQuery.data
+
+  try {
+    await bot.answerCallbackQuery(callbackQuery.id)
+
+    if (data.startsWith("confirm_deposit_")) {
+      const reference = data.replace("confirm_deposit_", "")
+      await verifyPaystackPayment(chatId, messageId, reference, true)
+      return
+    }
+
+    if (data.startsWith("confirm_")) {
+      const reference = data.replace("confirm_", "")
+      await verifyPaystackPayment(chatId, messageId, reference, false)
+      return
+    }
+  } catch (error) {
+    console.error("Callback query error:", error)
+    await bot.answerCallbackQuery(callbackQuery.id, {
+      text: "An error occurred. Please try again.",
+      show_alert: true,
+    })
+  }
+})
 
 async function handlePaymentConfirmation(chatId, messageId, reference) {
   try {
