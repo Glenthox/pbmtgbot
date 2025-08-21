@@ -142,6 +142,45 @@ app.post(`/bot${BOT_TOKEN}`, (req, res) => {
   res.status(200).send("OK")
 })
 
+app.post("/paystack/callback", async (req, res) => {
+  try {
+    const { reference } = req.body.data || {}
+
+    if (!reference) {
+      return res.status(400).json({ error: "No reference provided" })
+    }
+
+    const verifyRes = await axios.get(`https://api.paystack.co/transaction/verify/${reference}`, {
+      headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` },
+      timeout: 15000,
+    })
+
+    if (verifyRes.data.data.status === "success") {
+      const paymentData = verifyRes.data.data
+      const metadata = paymentData.metadata || {}
+      const userId = metadata.chatId
+      const amount = paymentData.amount / 100
+
+      if (metadata.depositAmount) {
+        await updateWallet(userId, amount)
+        console.log(`Wallet deposit successful for user ${userId}: ₵${amount}`)
+      }
+
+      await firebaseUpdate(`users/${userId}/transactions/${reference}`, {
+        status: "success",
+        verified_at: new Date().toISOString(),
+      })
+
+      console.log(`Payment verified successfully: ${reference}`)
+    }
+
+    res.status(200).json({ status: "success" })
+  } catch (error) {
+    console.error("Paystack callback error:", error)
+    res.status(500).json({ error: "Callback processing failed" })
+  }
+})
+
 const userSessions = new Map()
 
 async function makeAPIRequest(endpoint, method = "GET", data = null) {
@@ -432,9 +471,10 @@ bot.on("callback_query", async (query) => {
 
 async function getLastOrders(userId, limit = 5) {
   try {
-    const orders = await firebaseGet(`users/${userId}/orders`)
+    const actualUserId = userId
+    const orders = await firebaseGet(`users/${actualUserId}/orders`)
     if (!orders || typeof orders !== "object") {
-      console.log(`No orders found for user ${userId}`)
+      console.log(`No orders found for user ${actualUserId}`)
       return []
     }
 
@@ -458,7 +498,8 @@ async function showMyOrders(chatId, messageId, limit = 5) {
       parse_mode: "MarkdownV2",
     })
 
-    const orders = await getLastOrders(chatId, limit)
+    const userId = chatId
+    const orders = await getLastOrders(userId, limit)
 
     if (orders.length === 0) {
       const noOrdersMessage = `*📋 MY ORDERS*
@@ -1007,7 +1048,7 @@ async function initiatePaystackPayment(chatId, session) {
       amount: amount,
       reference: reference,
       currency: "GHS",
-      callback_url: `${WEBHOOK_URL}/verify.html?reference=${reference}`,
+      callback_url: `${WEBHOOK_URL}/paystack/callback`,
       metadata: metadata,
     }
 
