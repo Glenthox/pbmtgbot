@@ -500,21 +500,22 @@ function formatPhoneNumber(phone) {
   // Remove any spaces or special characters
   phone = phone.replace(/\s+/g, "").replace(/[^\d+]/g, "")
 
-  // Convert to international format
-  if (phone.startsWith("0")) {
-    return "+233" + phone.substring(1)
-  } else if (phone.startsWith("233")) {
-    return "+" + phone
-  } else if (phone.startsWith("+233")) {
-    return phone
-  }
-
-  return phone
+  // Strip any prefix and get last 9 digits
+  const last9Digits = phone.replace(/^\+?233|^0/, "").slice(-9)
+  
+  // For Foster API, return just the number without prefix
+  return "0" + last9Digits
 }
 
 function isValidGhanaNumber(phone) {
-  const formatted = formatPhoneNumber(phone)
-  return /^\+233[2-9]\d{8}$/.test(formatted)
+  // Remove any spaces or special characters
+  phone = phone.replace(/\s+/g, "").replace(/[^\d+]/g, "")
+  
+  // Check if it matches any of these formats:
+  // 0XXXXXXXXX (10 digits starting with 0)
+  // 233XXXXXXXXX (12 digits starting with 233)
+  // +233XXXXXXXXX (13 digits starting with +233)
+  return /^(0|233|\+233)[2-9]\d{8}$/.test(phone)
 }
 
 // Bot command handlers
@@ -522,14 +523,26 @@ bot.onText(/\/start/, async (msg) => {
   const chatId = msg.chat.id
   const user = msg.from
 
-  // Save user profile when they start the bot
+  // Clear any existing session but preserve user data
+  userSessions.delete(chatId)
+
   try {
-    await saveUserProfile(user)
+    // Check if user profile exists, create only if doesn't exist
+    const existingProfile = await firebaseGet(`users/${user.id}/profile`)
+    if (!existingProfile) {
+      await firebaseSet(`users/${user.id}/profile`, {
+        username: user.username || "unknown",
+        first_name: user.first_name || "",
+        last_name: user.last_name || "",
+        wallet: 0,
+        created_at: new Date().toISOString(),
+      })
+    }
   } catch (error) {
-    console.error("Error saving user profile:", error)
+    console.error("Error checking/creating user profile:", error)
   }
 
-  const welcomeMessage = `*WELCOME TO PBM HUB GHANA*
+  const welcomeMessage = `<b>WELCOME TO PBM HUB GHANA</b>
 
 THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA.
 
@@ -1742,11 +1755,30 @@ Your wallet has been credited successfully!`
 
 async function processDataBundle(chatId, session, reference) {
   try {
+    // Check if order was already processed
+    const existingOrder = await firebaseGet(`users/${chatId}/orders/${reference}`)
+    if (existingOrder?.status === "success") {
+      console.log(`Order ${reference} was already processed successfully`)
+      return true
+    }
+
     const { selectedPackage, phoneNumber } = session
+    
+    // Save pending order first
+    await firebaseSet(`users/${chatId}/orders/${reference}`, {
+      amount: selectedPackage.priceGHS,
+      bundle: `${selectedPackage.volumeGB}GB`,
+      network: selectedPackage.network,
+      phone_number: phoneNumber,
+      payment_method: session.paymentMethod || "paystack",
+      status: "pending",
+      timestamp: new Date().toISOString(),
+    })
+
     const result = await purchaseDataBundle(phoneNumber, selectedPackage.network_id, selectedPackage.volume)
 
     if (result.status === "success") {
-      // Save successful order
+      // Update order to success
       await saveOrder(chatId, reference, {
         amount: selectedPackage.priceGHS,
         bundle: `${selectedPackage.volumeGB}GB`,
@@ -1755,6 +1787,7 @@ async function processDataBundle(chatId, session, reference) {
         payment_method: session.paymentMethod || "paystack",
         status: "success",
         timestamp: new Date().toISOString(),
+        provider_response: result.data,
       })
 
       const successMessage = `✅ *DATA BUNDLE PURCHASE SUCCESSFUL*
@@ -1812,12 +1845,18 @@ The purchase failed. Please contact support for assistance.`
 }
 
 // Foster Console API integration
-async function purchaseDataBundle(phoneNumber, networkId, volume) {
+async function purchaseDataBundle(phoneNumber, networkId, volume, retryCount = 0) {
   try {
+    // Format phone number for Foster API (0-prefixed, no country code)
+    const formattedPhone = phoneNumber.replace(/^\+?233|^0/, "")
+    const phone = "0" + formattedPhone
+
+    console.log(`Attempting to purchase bundle: Phone=${phone}, Network=${networkId}, Volume=${volume}`)
+
     const response = await axios.post(
-      `${FOSTER_BASE_URL}/data`,
+      `${FOSTER_BASE_URL}/orders/purchase-data`,
       {
-        phone: phoneNumber,
+        phone: phone,
         network_id: networkId,
         volume: volume,
       },
@@ -1826,8 +1865,16 @@ async function purchaseDataBundle(phoneNumber, networkId, volume) {
           Authorization: `Bearer ${FOSTER_API_KEY}`,
           "Content-Type": "application/json",
         },
+        // Add timeout to prevent hanging requests
+        timeout: 30000,
       },
     )
+
+    console.log("Foster API Response:", response.data)
+
+    if (!response.data) {
+      throw new Error("Empty response from Foster API")
+    }
 
     return {
       status: response.data.success ? "success" : "failed",
@@ -1836,6 +1883,50 @@ async function purchaseDataBundle(phoneNumber, networkId, volume) {
     }
   } catch (error) {
     console.error("Foster API error:", error)
+
+    // If we get a 404, the endpoint might be wrong
+    if (error.response?.status === 404) {
+      console.log("Attempting fallback to legacy endpoint...")
+      try {
+        const response = await axios.post(
+          `${FOSTER_BASE_URL}/data`,
+          {
+            phone: phone,
+            network_id: networkId,
+            volume: volume,
+          },
+          {
+            headers: {
+              Authorization: `Bearer ${FOSTER_API_KEY}`,
+              "Content-Type": "application/json",
+            },
+            timeout: 30000,
+          }
+        )
+
+        console.log("Foster API Legacy Response:", response.data)
+
+        return {
+          status: response.data.success ? "success" : "failed",
+          message: response.data.message || "Purchase completed",
+          data: response.data,
+        }
+      } catch (fallbackError) {
+        console.error("Foster API fallback error:", fallbackError)
+      }
+    }
+
+    // Implement retry logic for transient errors
+    if (retryCount < 2 && (
+      error.code === 'ECONNRESET' ||
+      error.code === 'ETIMEDOUT' ||
+      error.response?.status >= 500
+    )) {
+      console.log(`Retrying purchase attempt ${retryCount + 1}/2...`)
+      await new Promise(resolve => setTimeout(resolve, 2000 * (retryCount + 1)))
+      return purchaseDataBundle(phoneNumber, networkId, volume, retryCount + 1)
+    }
+
     return {
       status: "failed",
       message: error.response?.data?.message || "Network error occurred",
