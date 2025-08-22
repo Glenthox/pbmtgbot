@@ -25,7 +25,7 @@ async function sendSMS(recipient, message) {
     const url = `${MNOTIFY_BASE_URL}?key=${MNOTIFY_API_KEY}`
     const data = {
       recipient: `233${formattedRecipient}`,
-      sender: "PBMHub", // Approved sender ID from mNotify dashboard
+      sender: "PBM HUB", // Approved sender ID from mNotify dashboard
       message: message
     }
 
