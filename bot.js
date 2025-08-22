@@ -2115,6 +2115,10 @@ async function processDataBundle(chatId, session, reference) {
     }
 
     const { selectedPackage, phoneNumber } = session
+
+    // Get user profile early to ensure we have their registered number
+    const userProfile = await getUserProfile(chatId)
+    console.log("User profile for SMS:", userProfile) // Debug logging
     
     // Save pending order first
     await firebaseSet(`users/${chatId}/orders/${reference}`, {
@@ -2147,13 +2151,23 @@ async function processDataBundle(chatId, session, reference) {
         }
       })
 
-      // Get user profile to fetch their registered phone number for SMS
-      const userProfile = await getUserProfile(chatId)
-      
-      // Prepare and send SMS notification
-      if (userProfile?.phone_number) {
-        const smsMessage = `Package has been processed: ${selectedPackage.networkName} ${selectedPackage.volumeGB}GB to ${phoneNumber}. It will be credited shortly.`
-        await sendSMS(userProfile.phone_number, smsMessage)
+      // Send SMS notification with error handling and logging
+      try {
+        if (userProfile?.phone_number) {
+          console.log("Sending SMS to:", userProfile.phone_number) // Debug logging
+          const smsMessage = `Your order was successful! ${selectedPackage.volumeGB}GB data bundle for ${phoneNumber} (${selectedPackage.networkName}) has been processed. Amount paid: GHS ${selectedPackage.priceGHS}. Thank you for choosing PBM Hub.`
+          
+          const smsResult = await sendSMS(userProfile.phone_number, smsMessage)
+          console.log("SMS send result:", smsResult) // Debug logging
+          
+          if (!smsResult) {
+            console.error("Failed to send SMS notification to:", userProfile.phone_number)
+          }
+        } else {
+          console.error("No registered phone number found for user:", chatId)
+        }
+      } catch (smsError) {
+        console.error("SMS sending error:", smsError)
       }
 
       const successMessage = `✅ *DATA BUNDLE PURCHASE SUCCESSFUL*
