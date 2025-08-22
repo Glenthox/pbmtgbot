@@ -14,34 +14,38 @@ const FOSTER_BASE_URL = "https://agent.jaybartservices.com/api/v1"
 
 // mNotify configuration
 const MNOTIFY_API_KEY = "5mqu6oMfCx1KxmmzWuYvMItzE"
-const MNOTIFY_SENDER_ID = "PBM HUB"
-const MNOTIFY_BASE_URL = "https://api.mnotify.com/api/sms/quick"
+const MNOTIFY_BASE_URL = "https://api.mnotify.com/api/sms"
 
 // SMS notification helper function
 async function sendSMS(recipient, message) {
   try {
-    // Format phone number for mNotify (remove + and country code if present)
+    // Format phone number (remove + and country code if present)
     const formattedRecipient = recipient.replace(/^\+?233|^0/, "")
     
-    const response = await axios.post(MNOTIFY_BASE_URL, {
+    const url = `${MNOTIFY_BASE_URL}?key=${MNOTIFY_API_KEY}`
+    const data = {
       recipient: `233${formattedRecipient}`,
-      sender: MNOTIFY_SENDER_ID,
-      message: message,
-      is_schedule: "false",
-      schedule_date: ""
-    }, {
-      params: { key: MNOTIFY_API_KEY },
+      sender: "PBMHub", // Approved sender ID from mNotify dashboard
+      message: message
+    }
+
+    console.log("📤 Attempting to send SMS")
+    console.log("� To:", `233${formattedRecipient}`)
+    console.log("� Message:", message)
+    
+    const response = await axios.post(url, data, { 
       headers: { "Content-Type": "application/json" }
     })
 
-    if (response.data.code === "2000") {
-      console.log("SMS sent successfully:", response.data)
+    if (response.data.status === "success") {
+      console.log("✅ SMS sent successfully:", response.data)
       return true
     } else {
-      throw new Error(`mNotify Error: ${response.data.message}`)
+      console.error("❌ SMS failed:", response.data)
+      return false
     }
   } catch (error) {
-    console.error("Failed to send SMS:", error.response?.data || error.message)
+    console.error("❌ SMS sending error:", error.response?.data || error.message)
     return false
   }
 }
@@ -2151,23 +2155,26 @@ async function processDataBundle(chatId, session, reference) {
         }
       })
 
-      // Send SMS notification with error handling and logging
-      try {
-        if (userProfile?.phone_number) {
-          console.log("Sending SMS to:", userProfile.phone_number) // Debug logging
-          const smsMessage = `Your order was successful! ${selectedPackage.volumeGB}GB data bundle for ${phoneNumber} (${selectedPackage.networkName}) has been processed. Amount paid: GHS ${selectedPackage.priceGHS}. Thank you for choosing PBM Hub.`
+      // Get the user's registered phone number for SMS notification
+      const profile = await getUserProfile(chatId)
+      let smsStatus = "not_sent"
+      let smsError = null
+
+      // Attempt to send SMS notification
+      if (profile?.phone_number) {
+        try {
+          const smsMessage = `Your order has been processed: ${selectedPackage.networkName} ${selectedPackage.volumeGB}GB to ${phoneNumber}. Amount: GHS${selectedPackage.priceGHS.toFixed(2)}. Order ID: ${reference}. Thank you for choosing PBMHub.`
           
-          const smsResult = await sendSMS(userProfile.phone_number, smsMessage)
-          console.log("SMS send result:", smsResult) // Debug logging
-          
-          if (!smsResult) {
-            console.error("Failed to send SMS notification to:", userProfile.phone_number)
-          }
-        } else {
-          console.error("No registered phone number found for user:", chatId)
+          const smsSent = await sendSMS(profile.phone_number, smsMessage)
+          smsStatus = smsSent ? "sent" : "failed"
+        } catch (error) {
+          smsError = error.message
+          smsStatus = "error"
+          console.error("SMS sending error:", error)
         }
-      } catch (smsError) {
-        console.error("SMS sending error:", smsError)
+      } else {
+        smsStatus = "no_number"
+        console.log("⚠️ No registered phone number for user:", chatId)
       }
 
       const successMessage = `✅ *DATA BUNDLE PURCHASE SUCCESSFUL*
@@ -2179,7 +2186,11 @@ async function processDataBundle(chatId, session, reference) {
 📅 *DATE:* ${new Date().toLocaleDateString("en-GB")}
 
 Your data bundle has been successfully delivered!
-An SMS confirmation has been sent to your registered number.`
+
+${smsStatus === "sent" ? "✅ SMS confirmation sent to your registered number." :
+  smsStatus === "failed" ? "❌ Failed to send SMS confirmation. Please check your registered number." :
+  smsStatus === "no_number" ? "⚠️ No registered phone number found. Please update your profile." :
+  "❌ SMS notification error. Please contact support."}`
 
       const keyboard = {
         inline_keyboard: [
