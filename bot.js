@@ -57,10 +57,16 @@ This number will be used for:
 • Account verification
 • Transaction notifications
 
-ℹ️ *Note:* Only Ghana phone numbers are accepted.`
+ℹ️ *Note:* Only Ghana phone numbers are accepted.
+❌ Click CANCEL to exit setup.`
 
   await bot.sendMessage(chatId, message, {
     parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "❌ CANCEL", callback_data: "exit" }]
+      ]
+    }
   })
 
   // Set user session to phone setup
@@ -877,7 +883,15 @@ bot.on("message", async (msg) => {
           "Examples:\n" +
           "• 0241234567\n" +
           "• +233241234567\n" +
-          "• 233241234567"
+          "• 233241234567\n\n" +
+          "Try again or click CANCEL to exit.",
+          {
+            reply_markup: {
+              inline_keyboard: [
+                [{ text: "❌ CANCEL", callback_data: "exit" }]
+              ]
+            }
+          }
         )
         return
       }
@@ -894,7 +908,43 @@ bot.on("message", async (msg) => {
 
       // Clear session and show main menu
       userSessions.delete(chatId)
-      await showMainMenu(chatId, null)
+      const welcomeMessage = `*WELCOME TO PBM HUB GHANA*
+
+THE FASTEST AND MOST SECURE WAY TO BUY DATA BUNDLES IN GHANA.
+
+FEATURES:
+💰 WALLET SYSTEM
+📱 MTN, TELECEL, AND AIRTELTIGO PACKAGES
+🔒 SECURE PAYMENTS
+⚡ FASTER DELIVERY
+🕐 24/7 SERVICE
+💎 BEST RATES
+
+SELECT YOUR NETWORK TO BEGIN.`
+
+      await bot.sendMessage(chatId, welcomeMessage, {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "MTN", callback_data: "network_mtn" },
+              { text: "TELECEL", callback_data: "network_telecel" },
+              { text: "AIRTELTIGO", callback_data: "network_airteltigo" }
+            ],
+            [
+              { text: "💰 WALLET", callback_data: "wallet_menu" },
+              { text: "📋 MY ORDERS", callback_data: "my_orders" },
+              { text: "🔍 FIND ORDER", callback_data: "find_order" }
+            ],
+            [
+              { text: "👤 ACCOUNT", callback_data: "account_info" },
+              { text: "❓ HELP", callback_data: "help" },
+              { text: "🎧 SUPPORT", callback_data: "support" }
+            ],
+            [{ text: "❌ EXIT", callback_data: "exit" }]
+          ]
+        }
+      })
       return
     }
     
@@ -1291,12 +1341,18 @@ async function handlePackageSelection(chatId, messageId, packageId) {
 
 ℹ️ *Note:* A 2% service charge is applied to all transactions to cover payment processing fees.
 
-ENTER YOUR GHANA PHONE NUMBER (E.G. 0241234567 OR +233241234567):`
+ENTER YOUR GHANA PHONE NUMBER (E.G. 0241234567 OR +233241234567):
+❌ Click GO BACK to select a different package.`
 
   await bot.editMessageText(message, {
     chat_id: chatId,
     message_id: messageId,
     parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "🔙 GO BACK", callback_data: "back_to_networks" }]
+      ]
+    }
   })
 }
 
