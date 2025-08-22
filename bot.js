@@ -37,8 +37,44 @@ async function saveUserProfile(user) {
     last_name: user.last_name || "",
     wallet: 0,
     created_at: new Date().toISOString(),
+    phone_number: null,
+    phone_verified: false
   }
   await firebaseSet(`users/${user.id}/profile`, profile)
+}
+
+// Request phone number from user
+async function requestPhoneNumber(chatId) {
+  const message = `📱 *PHONE NUMBER REQUIRED*
+
+To use PBM Hub Ghana, you need to set your phone number first.
+
+Please enter your Ghana phone number:
+(e.g., 0241234567 or +233241234567)
+
+This number will be used for:
+• Receiving data bundles
+• Account verification
+• Transaction notifications
+
+ℹ️ *Note:* Only Ghana phone numbers are accepted.`
+
+  await bot.sendMessage(chatId, message, {
+    parse_mode: "Markdown",
+  })
+
+  // Set user session to phone setup
+  userSessions.set(chatId, {
+    step: "setup_phone"
+  })
+}
+
+// Save phone number to user profile
+async function savePhoneNumber(userId, phone) {
+  await firebaseUpdate(`users/${userId}/profile`, {
+    phone_number: phone,
+    phone_verified: true
+  })
 }
 
 // Get user profile
@@ -547,7 +583,18 @@ bot.onText(/\/start/, async (msg) => {
         last_name: user.last_name || "",
         wallet: 0,
         created_at: new Date().toISOString(),
+        phone_number: null, // Initialize phone number as null
+        phone_verified: false
       })
+      // Prompt new user to set phone number
+      await requestPhoneNumber(chatId)
+      return // Don't show main menu until phone is set
+    }
+
+    // Check if existing user has phone number
+    if (!existingProfile.phone_number || !existingProfile.phone_verified) {
+      await requestPhoneNumber(chatId)
+      return // Don't show main menu until phone is set
     }
   } catch (error) {
     console.error("Error checking/creating user profile:", error)
@@ -823,6 +870,34 @@ bot.on("message", async (msg) => {
   if (!session) return
 
   try {
+    if (session.step === "setup_phone") {
+      if (!isValidGhanaNumber(text)) {
+        await bot.sendMessage(chatId, 
+          "❌ Invalid phone number. Please enter a valid Ghana phone number:\n" +
+          "Examples:\n" +
+          "• 0241234567\n" +
+          "• +233241234567\n" +
+          "• 233241234567"
+        )
+        return
+      }
+
+      const formattedPhone = formatPhoneNumber(text)
+      await savePhoneNumber(chatId, formattedPhone)
+
+      await bot.sendMessage(chatId,
+        `✅ *Phone number set successfully!*\n\n` +
+        `Your phone number: ${formattedPhone}\n\n` +
+        `You can now use all features of PBM Hub Ghana.`,
+        { parse_mode: "Markdown" }
+      )
+
+      // Clear session and show main menu
+      userSessions.delete(chatId)
+      await showMainMenu(chatId, null)
+      return
+    }
+    
     if (session.step === "phone_number") {
       await handlePhoneNumberInput(chatId, text, session)
     } else if (session.step === "deposit_amount") {
@@ -1343,7 +1418,8 @@ async function showAccountInfo(chatId, messageId) {
 
 👤 *NAME:* ${profile.first_name} ${profile.last_name}
 📧 *USERNAME:* @${profile.username}
-💰 *WALLET BALANCE:* ₵${(profile.wallet || 0).toFixed(2)}
+� *PHONE:* ${profile.phone_number || "Not set"}
+�💰 *WALLET BALANCE:* ₵${(profile.wallet || 0).toFixed(2)}
 📅 *MEMBER SINCE:* ${new Date(profile.created_at).toLocaleDateString("en-GB")}
 
 📊 *STATISTICS:*
