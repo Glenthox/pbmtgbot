@@ -14,7 +14,7 @@ const FOSTER_BASE_URL = "https://agent.jaybartservices.com/api/v1"
 
 // mNotify configuration
 const MNOTIFY_API_KEY = "5mqu6oMfCx1KxmmzWuYvMItzE"
-const MNOTIFY_BASE_URL = "https://api.mnotify.com/api/sms"
+const MNOTIFY_BASE_URL = "https://api.mnotify.com/api/sms/quick"
 
 // SMS notification helper function
 async function sendSMS(recipient, message) {
@@ -22,22 +22,22 @@ async function sendSMS(recipient, message) {
     // Format phone number (remove + and country code if present)
     const formattedRecipient = recipient.replace(/^\+?233|^0/, "")
     
-    const url = `${MNOTIFY_BASE_URL}?key=${MNOTIFY_API_KEY}`
     const data = {
-      recipient: `233${formattedRecipient}`,
-      sender: "PBM HUB", // Approved sender ID from mNotify dashboard
-      message: message
+      recipient: [`233${formattedRecipient}`],  // recipient must be an array
+      sender: "PBM HUB",  // Exact sender ID as approved
+      message: message,
+      key: MNOTIFY_API_KEY  // API key goes in the body
     }
 
     console.log("📤 Attempting to send SMS")
     console.log("� To:", `233${formattedRecipient}`)
     console.log("� Message:", message)
     
-    const response = await axios.post(url, data, { 
+    const response = await axios.post(MNOTIFY_BASE_URL, data, { 
       headers: { "Content-Type": "application/json" }
     })
 
-    if (response.data.status === "success") {
+    if (response.data.code === "2000") {
       console.log("✅ SMS sent successfully:", response.data)
       return true
     } else {
