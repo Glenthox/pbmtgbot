@@ -12,6 +12,40 @@ const PAYSTACK_PUBLIC_KEY = process.env.PAYSTACK_PUBLIC_KEY
 const FOSTER_API_KEY = process.env.FOSTER_API_KEY
 const FOSTER_BASE_URL = "https://agent.jaybartservices.com/api/v1"
 
+// mNotify configuration
+const MNOTIFY_API_KEY = "5mqu6oMfCx1KxmmzWuYvMItzE"
+const MNOTIFY_SENDER_ID = "PBM HUB"
+const MNOTIFY_BASE_URL = "https://api.mnotify.com/api/sms/quick"
+
+// SMS notification helper function
+async function sendSMS(recipient, message) {
+  try {
+    // Format phone number for mNotify (remove + and country code if present)
+    const formattedRecipient = recipient.replace(/^\+?233|^0/, "")
+    
+    const response = await axios.post(MNOTIFY_BASE_URL, {
+      recipient: `233${formattedRecipient}`,
+      sender: MNOTIFY_SENDER_ID,
+      message: message,
+      is_schedule: "false",
+      schedule_date: ""
+    }, {
+      params: { key: MNOTIFY_API_KEY },
+      headers: { "Content-Type": "application/json" }
+    })
+
+    if (response.data.code === "2000") {
+      console.log("SMS sent successfully:", response.data)
+      return true
+    } else {
+      throw new Error(`mNotify Error: ${response.data.message}`)
+    }
+  } catch (error) {
+    console.error("Failed to send SMS:", error.response?.data || error.message)
+    return false
+  }
+}
+
 // Firebase Realtime Database config
 const FIREBASE_URL = "https://crudapp-c51d3-default-rtdb.asia-southeast1.firebasedatabase.app/"
 
@@ -2113,6 +2147,15 @@ async function processDataBundle(chatId, session, reference) {
         }
       })
 
+      // Get user profile to fetch their registered phone number for SMS
+      const userProfile = await getUserProfile(chatId)
+      
+      // Prepare and send SMS notification
+      if (userProfile?.phone_number) {
+        const smsMessage = `Package has been processed: ${selectedPackage.networkName} ${selectedPackage.volumeGB}GB to ${phoneNumber}. It will be credited shortly.`
+        await sendSMS(userProfile.phone_number, smsMessage)
+      }
+
       const successMessage = `✅ *DATA BUNDLE PURCHASE SUCCESSFUL*
 
 🌐 *NETWORK:* ${selectedPackage.networkName.toUpperCase()}
@@ -2121,7 +2164,8 @@ async function processDataBundle(chatId, session, reference) {
 📋 *ORDER ID:* ${reference}
 📅 *DATE:* ${new Date().toLocaleDateString("en-GB")}
 
-Your data bundle has been successfully delivered!`
+Your data bundle has been successfully delivered!
+An SMS confirmation has been sent to your registered number.`
 
       const keyboard = {
         inline_keyboard: [
